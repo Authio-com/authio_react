@@ -4,6 +4,16 @@ All notable changes to `@useauthio/react` are documented here. This
 project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] — 2026-06-13
+
+### Fixed
+- **Package is now installable from npm.** `0.2.0` declared its
+  `@useauthio/node` dependency as `file:./vendor/authio-node`, a local
+  path that does not resolve when installed from the registry, so
+  `npm install @useauthio/react` failed for every external user. The
+  dependency now points at the published `@useauthio/node` (`^0.2.0`)
+  and the vendored copy has been removed from the package.
+
 ## [0.2.0] — 2026-06-12
 
 ### Changed

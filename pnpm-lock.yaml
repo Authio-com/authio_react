@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@useauthio/node':
-        specifier: file:./vendor/authio-node
-        version: file:vendor/authio-node
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^6.4.0
@@ -463,8 +463,8 @@ packages:
   '@types/react@18.3.29':
     resolution: {integrity: sha512-ch0qJdr2JY0r04NXSprbK6TXOgnaJ1Tz23fm5W+z0/CBah6BSBc3n96h7K9GOtwh0HrilNWHIBzE1Ko4Dcw/Wg==}
 
-  '@useauthio/node@file:vendor/authio-node':
-    resolution: {directory: vendor/authio-node, type: directory}
+  '@useauthio/node@0.2.0':
+    resolution: {integrity: sha512-KBZwpdUfFob7IoVaWWEnNre1QEWNARQLq6I7kHxkKcYlOLjUg8T3uV0Oi/TPGZJuobjGmLlktOCjGvUtK8TFHw==}
     engines: {node: '>=20'}
 
   '@vitest/coverage-v8@4.1.8':
@@ -1457,7 +1457,7 @@ snapshots:
       '@types/prop-types': 15.7.15
       csstype: 3.2.3
 
-  '@useauthio/node@file:vendor/authio-node':
+  '@useauthio/node@0.2.0':
     dependencies:
       jose: 5.10.0
 

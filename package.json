@@ -1,6 +1,6 @@
 {
   "name": "@useauthio/react",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "React SDK for Authio: hooks, gates, and sign-in helpers for pure SPAs.",
   "author": "Authio",
   "license": "MIT",
@@ -24,7 +24,6 @@
   "files": [
     "dist",
     "src",
-    "vendor",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -45,7 +44,7 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@useauthio/node": "file:./vendor/authio-node"
+    "@useauthio/node": "^0.2.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.0",
