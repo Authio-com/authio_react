@@ -4,6 +4,28 @@ All notable changes to `@useauthio/react` are documented here. This
 project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-06-13
+
+### Fixed
+- **Magic-link sign-in now matches auth-core.** `signInWithMagicLink`
+  sent the recipient as `email`; auth-core's `POST /v1/auth/magic-link/send`
+  reads it as `destination`. Real sends were rejected; they now succeed.
+- **Passkey login now completes.** `signInWithPasskey` posted a flat,
+  snake-cased assertion body to `/v1/auth/passkey/login/verify`; auth-core
+  expects the standard WebAuthn JSON (camelCase) wrapped under a top-level
+  `credential` key and rejects unknown fields. The verify body is now
+  `{ credential: { id, rawId, type, response: { clientDataJSON,
+  authenticatorData, signature, userHandle } } }`.
+
+### Added
+- **Client-side token-handoff.** `useAuthio()` now exposes
+  `handleSignInResult({ accessToken, refreshToken?, user? })`, which
+  verifies the access token against the live JWKS, adopts it into provider
+  state (`status: authenticated`), and arms the silent-refresh scheduler.
+  A pure SPA can now complete a magic-link sign-in by reading
+  `?access_token=…` off the callback redirect and handing it to the SDK —
+  no same-origin BFF refresh cookie required (parity with `@useauthio/vue`).
+
 ## [0.2.1] — 2026-06-13
 
 ### Fixed

@@ -31,7 +31,7 @@ describe("signInWithMagicLink", () => {
 
     const body = JSON.parse(call.init?.body as string);
     expect(body).toEqual({
-      email: "alice@example.com",
+      destination: "alice@example.com",
       redirect_uri: "https://app.example.com/auth/callback",
     });
   });

@@ -55,7 +55,9 @@ export async function signInWithMagicLink(
     path: "/v1/auth/magic-link/send",
     method: "POST",
     body: {
-      email: opts.email,
+      // auth-core's magic-link send reads the recipient as `destination`
+      // (email or E.164), NOT `email`. See magiclink.go magicLinkSendReq.
+      destination: opts.email,
       redirect_uri: opts.redirectUri,
     },
     signal: opts.signal,
@@ -200,17 +202,22 @@ export async function signInWithPasskey(
   const assertion = credential as PublicKeyCredential & {
     response: AuthenticatorAssertionResponse;
   };
-  const verifyBody = {
+  // auth-core's passkey login/verify expects the standard WebAuthn JSON
+  // (camelCase) wrapped under a top-level `credential` key — it parses
+  // req.Credential with go-webauthn's ParseCredentialRequestResponseBody
+  // and rejects unknown top-level fields (DisallowUnknownFields). See
+  // passkey.go passkeyLoginVerify + the P1 passkey conformance flow.
+  const webauthnCredential = {
     id: assertion.id,
-    raw_id: bufferToBase64Url(assertion.rawId),
+    rawId: bufferToBase64Url(assertion.rawId),
     type: assertion.type,
     response: {
-      client_data_json: bufferToBase64Url(assertion.response.clientDataJSON),
-      authenticator_data: bufferToBase64Url(
+      clientDataJSON: bufferToBase64Url(assertion.response.clientDataJSON),
+      authenticatorData: bufferToBase64Url(
         assertion.response.authenticatorData,
       ),
       signature: bufferToBase64Url(assertion.response.signature),
-      user_handle: assertion.response.userHandle
+      userHandle: assertion.response.userHandle
         ? bufferToBase64Url(assertion.response.userHandle)
         : null,
     },
@@ -221,7 +228,7 @@ export async function signInWithPasskey(
     projectId: opts.projectId,
     path: "/v1/auth/passkey/login/verify",
     method: "POST",
-    body: verifyBody,
+    body: { credential: webauthnCredential },
     credentials: "include",
     signal: opts.signal,
     fetchImpl: opts.fetch,

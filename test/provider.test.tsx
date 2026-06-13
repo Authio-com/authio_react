@@ -138,6 +138,86 @@ describe("<AuthioProvider>", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("handleSignInResult verifies + adopts a handed-off token (pure-SPA token-handoff)", async () => {
+    const exp = Math.floor(Date.now() / 1000) + 900;
+    const token = makeJwt({ sub: "user_handoff", exp });
+    const fetchImpl = makeMockFetch([]);
+
+    let ctxRef: ReturnType<typeof useAuthio> | null = null;
+    function Probe() {
+      const ctx = useAuthio();
+      ctxRef = ctx;
+      return <span data-testid="status">{ctx.status}</span>;
+    }
+
+    render(
+      <AuthioProvider
+        apiUrl="https://auth-api.test"
+        projectId="proj_test"
+        fetch={fetchImpl as unknown as typeof fetch}
+        skipInitialRefresh
+        verifyToken={alwaysValidVerifier("user_handoff")}
+      >
+        <Probe />
+      </AuthioProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toBe("unauthenticated"),
+    );
+
+    await act(async () => {
+      await ctxRef!.handleSignInResult({
+        accessToken: token,
+        refreshToken: "rt_handoff",
+        user: { id: "user_handoff", email: "handoff@example.com", emailVerified: true },
+      });
+    });
+
+    expect(screen.getByTestId("status").textContent).toBe("authenticated");
+    expect(ctxRef!.accessToken).toBe(token);
+    expect(ctxRef!.user?.email).toBe("handoff@example.com");
+    // No network call was needed for the handoff itself.
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("handleSignInResult throws + stays unauthenticated when the token fails verification", async () => {
+    const token = makeJwt({ sub: "user_bad", exp: 9999999999 });
+    const fetchImpl = makeMockFetch([]);
+
+    let ctxRef: ReturnType<typeof useAuthio> | null = null;
+    function Probe() {
+      const ctx = useAuthio();
+      ctxRef = ctx;
+      return <span data-testid="status">{ctx.status}</span>;
+    }
+
+    render(
+      <AuthioProvider
+        apiUrl="https://auth-api.test"
+        projectId="proj_test"
+        fetch={fetchImpl as unknown as typeof fetch}
+        skipInitialRefresh
+        verifyToken={alwaysInvalidVerifier}
+      >
+        <Probe />
+      </AuthioProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toBe("unauthenticated"),
+    );
+
+    await act(async () => {
+      await expect(
+        ctxRef!.handleSignInResult({ accessToken: token }),
+      ).rejects.toMatchObject({ code: "token_rejected" });
+    });
+
+    expect(screen.getByTestId("status").textContent).toBe("unauthenticated");
+    expect(ctxRef!.accessToken).toBeNull();
+  });
+
   it("sends X-Authio-Project header on the refresh call", async () => {
     const fetchImpl = makeMockFetch([
       {
