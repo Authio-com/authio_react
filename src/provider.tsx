@@ -128,6 +128,15 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
 
   const schedulerRef = useRef<RefreshScheduler | null>(null);
 
+  // Optional in-memory refresh token. React's canonical refresh path is the
+  // same-origin BFF HttpOnly cookie (performRefresh posts with
+  // credentials: "include"). But a pure SPA completing a magic-link/passkey
+  // sign-in via handleSignInResult may receive a refresh token directly
+  // (e.g. from the callback redirect URL) with no cookie available; we hold
+  // it here, memory-only (never web-storage), and send it in the refresh
+  // body as a fallback. Mirrors @useauthio/vue's state.ts.
+  const refreshTokenRef = useRef<string | null>(null);
+
   const [user, setUser] = useState<AuthioUser | null>(null);
   const [status, setStatus] = useState<AuthioStatus>(
     skipInitialRefresh ? "unauthenticated" : "loading",
@@ -148,10 +157,13 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
         projectId: p.projectId,
         path: "/v1/auth/refresh",
         method: "POST",
-        body: {},
+        body: refreshTokenRef.current
+          ? { refresh_token: refreshTokenRef.current }
+          : {},
         credentials: "include",
         fetchImpl: p.fetchImpl,
       });
+      if (env.refresh_token) refreshTokenRef.current = env.refresh_token;
       const token = env.access_token;
       if (!token) {
         p.emit({
@@ -218,6 +230,7 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       run: performRefresh,
       onGiveUp: () => {
         storageRef.current!.clear();
+        refreshTokenRef.current = null;
         setAccessToken(null);
         setUser(null);
         setStatus("unauthenticated");
@@ -377,6 +390,7 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       // baseline anyway.
     } finally {
       storageRef.current!.clear();
+      refreshTokenRef.current = null;
       schedulerRef.current?.clear();
       setAccessToken(null);
       setUser(null);
@@ -390,6 +404,58 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
     [performRefresh],
   );
 
+  const handleSignInResult = useCallback(
+    async (input: {
+      accessToken: string;
+      refreshToken?: string | null;
+      user?: AuthioUser | null;
+    }): Promise<void> => {
+      const p = propsRef.current;
+      const verification = await verifierRef
+        .current!(input.accessToken)
+        .catch(() => null);
+      if (!verification) {
+        p.emit({
+          kind: "token_rejected",
+          timestamp: Date.now(),
+          reason: "handoff_verification_failed",
+        });
+        // Leave the session unauthenticated and surface the rejection so
+        // the caller can show an error rather than silently swallowing it.
+        storageRef.current!.clear();
+        refreshTokenRef.current = null;
+        setAccessToken(null);
+        setUser(null);
+        setStatus("unauthenticated");
+        throw new AuthioError({
+          code: "token_rejected",
+          message: "Authio rejected the handed-off access token signature.",
+          status: 0,
+        });
+      }
+      if (input.refreshToken) refreshTokenRef.current = input.refreshToken;
+      p.emit({
+        kind: "token_verified",
+        timestamp: Date.now(),
+        subject: verification.subject,
+      });
+      storageRef.current!.set(input.accessToken);
+      setAccessToken(input.accessToken);
+      if (input.user) setUser(input.user);
+      setStatus("authenticated");
+      p.emit({
+        kind: "sign_in_completed",
+        timestamp: Date.now(),
+        method: "magic_link",
+      });
+      const exp = verification.expiresAt ?? readJwtExp(input.accessToken);
+      if (exp !== null && exp !== undefined) {
+        schedulerRef.current?.scheduleAt(exp);
+      }
+    },
+    [],
+  );
+
   const value = useMemo<AuthioContextValue>(
     () => ({
       user,
@@ -399,8 +465,18 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       signIn,
       signOut,
       refresh,
+      handleSignInResult,
     }),
-    [user, status, accessToken, getAccessToken, signIn, signOut, refresh],
+    [
+      user,
+      status,
+      accessToken,
+      getAccessToken,
+      signIn,
+      signOut,
+      refresh,
+      handleSignInResult,
+    ],
   );
 
   return (

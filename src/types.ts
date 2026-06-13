@@ -58,6 +58,35 @@ export interface AuthioContextValue {
    * authenticated), `false` on failure (state is unauthenticated).
    */
   refresh: () => Promise<boolean>;
+  /**
+   * Hand a freshly-obtained `(accessToken, refreshToken?, user?)` triple to
+   * the SDK — e.g. after a magic-link callback redirect lands on your SPA
+   * with `?access_token=…&refresh_token=…` in the URL, or after
+   * `signInWithPasskey()` resolves. Verifies the access token against the
+   * live JWKS, adopts it into provider state (status → `authenticated`),
+   * persists it per the `storage` mode, and (re-)arms the silent-refresh
+   * scheduler.
+   *
+   * This is the client-side token-handoff a pure SPA needs when it does
+   * NOT have a same-origin BFF refresh cookie to bootstrap from. Throws
+   * `AuthioError` (code `token_rejected`) when the token fails
+   * verification; state is left `unauthenticated`.
+   *
+   * ```tsx
+   * const { handleSignInResult } = useAuthio();
+   * // on your /auth/callback page:
+   * const p = new URLSearchParams(window.location.search);
+   * const accessToken = p.get("access_token");
+   * if (accessToken) {
+   *   await handleSignInResult({ accessToken, refreshToken: p.get("refresh_token") });
+   * }
+   * ```
+   */
+  handleSignInResult: (input: {
+    accessToken: string;
+    refreshToken?: string | null;
+    user?: AuthioUser | null;
+  }) => Promise<void>;
 }
 
 /** Result of a single JWT verification attempt. */
