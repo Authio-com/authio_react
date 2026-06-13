@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+dist/
+*.log
+.idea/
+.vscode/
+.turbo/
+coverage/
+
+# The vendored @authio/node dist is committed so local CI can resolve
+# `file:./vendor/authio-node` without needing the npm scope claim.
+!vendor/authio-node/dist/
