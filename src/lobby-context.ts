@@ -5,6 +5,8 @@ export interface MintLobbySignInUrlOptions {
   projectId: string;
   hostedUiUrl: string;
   redirectUri: string;
+  /** Post-login path threaded separately from redirect_uri (BFF ?next=). */
+  next?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -34,6 +36,7 @@ export async function mintLobbySignInUrl(
           body: JSON.stringify({
             project_id: opts.projectId,
             redirect_uri: opts.redirectUri,
+            ...(opts.next ? { next: opts.next } : {}),
           }),
         },
       );
@@ -53,5 +56,8 @@ export async function mintLobbySignInUrl(
     target.searchParams.set("project_id", opts.projectId);
   }
   target.searchParams.set("redirect_uri", opts.redirectUri);
+  if (opts.next) {
+    target.searchParams.set("next", opts.next);
+  }
   return target.toString();
 }
