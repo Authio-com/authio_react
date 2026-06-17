@@ -142,7 +142,7 @@ A complete runnable example lives in [`examples/vite-react/`](./examples/vite-re
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `apiUrl` | `string` (required) | — | Auth-core base URL, e.g. `"https://auth-api.authio.com"`. |
-| `projectId` | `string` (required) | — | Project ID (`proj_…`). Sent as `X-Authio-Project` on every call. |
+| `projectId` | `string` (required) | — | Environment ID (`proj_…`; API field `project_id`). Sent as `X-Authio-Project` on every call. |
 | `storage` | `"memory" \| "localStorage" \| "sessionStorage" \| "none"` | `"memory"` | Access-token storage backend. **Refresh tokens are never JS-accessible** regardless of this setting. |
 | `refreshLeadSeconds` | `number` | `60` | How many seconds before `exp` to schedule the silent refresh. |
 | `onTelemetryEvent` | `(event: AuthioTelemetryEvent) => void` | — | Sink for SDK telemetry (refresh outcomes, sign-in starts/completes, token verification). No phone-home by default. |
