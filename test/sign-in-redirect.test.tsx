@@ -30,7 +30,48 @@ describe("signIn() redirect", () => {
     vi.unstubAllGlobals();
   });
 
-  it("redirects to Lobby with project_id and redirect_uri (not identity /v1/auth/sign-in)", async () => {
+  it("redirects to Lobby with signed ctx when mint succeeds", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchImpl = makeMockFetch([
+      {
+        match: (url) => url.endsWith("/v1/auth/refresh"),
+        reply: () => ({ status: 401, body: {} }),
+      },
+      {
+        match: (url, init) =>
+          url.endsWith("/v1/auth/lobby-context") && init?.method === "POST",
+        reply: () => ({ status: 200, body: { ctx: "signed.ctx.token" } }),
+      },
+    ]);
+
+    const { getByRole } = render(
+      <AuthioProvider
+        apiUrl="https://auth-api.test"
+        projectId="proj_abc"
+        fetch={fetchImpl as unknown as typeof fetch}
+        verifyToken={alwaysValidVerifier()}
+        skipInitialRefresh
+      >
+        <SignInButton />
+      </AuthioProvider>,
+    );
+
+    await act(async () => {
+      getByRole("button").click();
+      await Promise.resolve();
+    });
+
+    expect(assign).toHaveBeenCalledOnce();
+    const target = new URL(assign.mock.calls[0]![0] as string);
+    expect(target.origin).toBe("https://lobby.authio.com");
+    expect(target.searchParams.get("ctx")).toBe("signed.ctx.token");
+    expect(target.searchParams.has("project_id")).toBe(false);
+    expect(target.searchParams.get("redirect_uri")).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("redirects to Lobby with legacy query params when mint fails", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const fetchImpl = makeMockFetch([
       {
@@ -53,6 +94,7 @@ describe("signIn() redirect", () => {
 
     await act(async () => {
       getByRole("button").click();
+      await Promise.resolve();
     });
 
     expect(assign).toHaveBeenCalledOnce();
@@ -84,6 +126,7 @@ describe("signIn() redirect", () => {
 
     await act(async () => {
       getByRole("button").click();
+      await Promise.resolve();
     });
 
     const target = new URL(assign.mock.calls[0]![0] as string);

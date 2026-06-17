@@ -12,6 +12,7 @@ import { createDefaultVerifier, readJwtExp } from "./jwt";
 import { RefreshScheduler } from "./refresh";
 import { isBrowser } from "./ssr";
 import { createTokenStorage, type TokenStorage } from "./storage";
+import { mintLobbySignInUrl } from "./lobby-context";
 import { noopEmitter, type TelemetryEmitter } from "./telemetry";
 import type {
   AuthioContextValue,
@@ -342,8 +343,8 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
     return ok ? storageRef.current!.get() : null;
   }, [accessToken, performRefresh]);
 
-  const signIn = useCallback(
-    (opts: { returnTo?: string } = {}) => {
+  const signIn = useCallback((opts: { returnTo?: string } = {}) => {
+    void (async () => {
       const p = propsRef.current;
       p.emit({
         kind: "sign_in_started",
@@ -356,19 +357,16 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
           "[@useauthio/react] AuthioProvider projectId is missing — Lobby cannot resolve your project. Set projectId=\"proj_…\" on <AuthioProvider>.",
         );
       }
-      const base = p.signInUrl ?? DEFAULT_SIGN_IN_URL;
-      const url = new URL(base);
-      if (p.projectId) {
-        url.searchParams.set("project_id", p.projectId);
-      }
-      url.searchParams.set(
-        "redirect_uri",
-        opts.returnTo ?? window.location.href,
-      );
-      window.location.assign(url.toString());
-    },
-    [],
-  );
+      const url = await mintLobbySignInUrl({
+        apiUrl: p.apiUrl,
+        projectId: p.projectId,
+        hostedUiUrl: p.signInUrl ?? DEFAULT_SIGN_IN_URL,
+        redirectUri: opts.returnTo ?? window.location.href,
+        fetchImpl: p.fetchImpl,
+      });
+      window.location.assign(url);
+    })();
+  }, []);
 
   const signOut = useCallback(async (): Promise<void> => {
     const p = propsRef.current;
