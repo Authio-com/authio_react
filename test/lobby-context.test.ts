@@ -2,6 +2,29 @@ import { describe, expect, it, vi } from "vitest";
 import { mintLobbySignInUrl } from "../src/lobby-context";
 
 describe("mintLobbySignInUrl", () => {
+  it("passes next in lobby ctx mint body when provided", async () => {
+    const fetchImpl = vi.fn(async () =>
+      Response.json({ ctx: "signed.ctx.token" }),
+    );
+
+    const url = await mintLobbySignInUrl({
+      apiUrl: "https://auth-api.test",
+      projectId: "proj_abc",
+      hostedUiUrl: "https://lobby.authio.com/",
+      redirectUri: "https://app.test/cb",
+      next: "/dash",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const target = new URL(url);
+    expect(target.searchParams.get("ctx")).toBe("signed.ctx.token");
+    expect(JSON.parse(fetchImpl.mock.calls[0]![1]?.body as string)).toEqual({
+      project_id: "proj_abc",
+      redirect_uri: "https://app.test/cb",
+      next: "/dash",
+    });
+  });
+
   it("uses ?ctx= when auth-core mint succeeds", async () => {
     const fetchImpl = vi.fn(async () =>
       Response.json({ ctx: "signed.ctx.token" }),
