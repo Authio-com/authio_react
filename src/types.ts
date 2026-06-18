@@ -104,7 +104,7 @@ export type AuthioTokenVerifier = (
 export interface AuthioProviderProps {
   /** Authio auth-core base URL, e.g. `"https://auth-api.authio.com"`. */
   apiUrl: string;
-  /** Project ID (`proj_…`). Sent as `X-Authio-Project` on every call. */
+  /** Project ID (`proj_…`). Dashboard environment ID; API field `project_id`. Sent as `X-Authio-Project` on every call. */
   projectId: string;
   /**
    * Where the access token lives. Defaults to `"memory"`. NEVER stores

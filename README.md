@@ -133,6 +133,27 @@ auth-core JWKS before trusting it.
 
 A complete runnable example lives in [`examples/vite-react/`](./examples/vite-react/).
 
+### Custom auth domains
+
+The default `signInUrl` is the platform Lobby (`https://lobby.authio.com/`).
+Enterprise customers with a branded auth host point `signInUrl` at that URL
+instead — in Vite apps, typically via `VITE_AUTHIO_SIGN_IN_URL`:
+
+```tsx
+<AuthioProvider
+  apiUrl={import.meta.env.VITE_AUTHIO_API_URL}
+  projectId={import.meta.env.VITE_AUTHIO_PROJECT_ID}
+  signInUrl={
+    import.meta.env.VITE_AUTHIO_SIGN_IN_URL ?? "https://lobby.authio.com/"
+  }
+/>
+```
+
+DNS setup for a vanity hostname (e.g. `auth.acme.com`) is dashboard-side:
+CNAME your auth host to **`cname.authiodns.com`**. The SDK does not reference
+that CNAME at runtime — it only affects where end users sign in when you override
+`signInUrl`. See [Custom domains](https://docs.authio.com/guides/custom-domains).
+
 ---
 
 ## API reference
@@ -147,7 +168,7 @@ A complete runnable example lives in [`examples/vite-react/`](./examples/vite-re
 | `refreshLeadSeconds` | `number` | `60` | How many seconds before `exp` to schedule the silent refresh. |
 | `onTelemetryEvent` | `(event: AuthioTelemetryEvent) => void` | — | Sink for SDK telemetry (refresh outcomes, sign-in starts/completes, token verification). No phone-home by default. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | DI for tests / custom transports. |
-| `signInUrl` | `string` | `https://lobby.authio.com/` | Lobby (hosted UI) sign-in URL. |
+| `signInUrl` | `string` | `https://lobby.authio.com/` | Lobby (hosted UI) sign-in URL. Set to your branded auth host (e.g. `https://auth.acme.com/`) when using a custom domain — see [Custom auth domains](#custom-auth-domains) below. |
 | `jwtIssuer` | `string` | `apiUrl` | JWT `iss` claim to require during verification. |
 | `jwtAudience` | `string` | `"authio"` | JWT `aud` claim to require during verification. |
 | `verifyToken` | `AuthioTokenVerifier` | `JwtVerifier`-based | Override the verification step (testing / custom JWKS). |
@@ -171,8 +192,10 @@ A complete runnable example lives in [`examples/vite-react/`](./examples/vite-re
   from `exp`, otherwise transparently triggers a refresh and returns
   the new value (or `null` on failure). Use it as your `Authorization`
   source for outbound API calls.
-- `signIn()` navigates the tab to Lobby (`signInUrl`) with
-  `?project_id=…&redirect_uri=…`.
+- `signIn()` navigates the tab to Lobby (`signInUrl`). When auth-core
+  supports it, the SDK mints a short-lived `ctx` token so
+  `project_id` and `redirect_uri` are not exposed in the URL; it falls
+  back to legacy `?project_id=…&redirect_uri=…` query params otherwise.
 - `signOut()` best-effort POSTs to `/v1/auth/sign-out`, then clears
   local state regardless of the upstream result.
 - `refresh()` runs one refresh attempt and resolves `true` on success.

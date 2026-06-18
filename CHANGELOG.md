@@ -4,6 +4,24 @@ All notable changes to `@useauthio/react` are documented here. This
 project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] — 2026-06-17
+
+### Added
+- **Signed lobby context tokens.** `signIn()` now POSTs to
+  `/v1/auth/lobby-context` and redirects with a short-lived `?ctx=…`
+  param when auth-core supports it, so `project_id` and `redirect_uri`
+  are not exposed in the browser URL. Falls back to legacy query params
+  when minting fails or auth-core is unavailable.
+- **Environment terminology in docs.** README documents `projectId` as
+  the dashboard **environment ID** (`proj_…`; API field `project_id`).
+  Env var names (`AUTHIO_PROJECT_ID`, `VITE_AUTHIO_PROJECT_ID`) are
+  unchanged for backward compatibility.
+
+### Changed
+- README adds custom-domain guidance: keep the default Lobby URL at
+  runtime, override `signInUrl` / `VITE_AUTHIO_SIGN_IN_URL` for branded
+  auth hosts; DNS CNAME target is `cname.authiodns.com` (docs-only).
+
 ## [0.2.2] — 2026-06-13
 
 ### Fixed
