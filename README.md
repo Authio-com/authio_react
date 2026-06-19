@@ -245,6 +245,40 @@ The returned `refreshToken` is included for completeness but the SDK
 itself never persists it — auth-core also sets the refresh cookie via
 `Set-Cookie` and that's the canonical home for it.
 
+### Passkey management (`/v1/me/passkeys`)
+
+After signup, let users add and manage passkeys on the sign-in origin
+or from your SPA:
+
+```ts
+import {
+  addPasskey,
+  listPasskeys,
+  renamePasskey,
+  revokePasskey,
+  enrollPasskey,
+  usePasskeys,
+  PasskeyManager,
+} from "@useauthio/react";
+
+const token = await getAccessToken();
+await addPasskey({
+  apiUrl: "https://auth-api.authio.com",
+  projectId: "proj_123",
+  accessToken: token!,
+  email: user.email!,
+});
+```
+
+- `addPasskey` — inline WebAuthn on the **current origin** (use when
+  your app runs on the same host as the hosted sign-in UI / custom
+  `auth.` domain).
+- `enrollPasskey` — redirects to hosted UI `?mode=add_credential` when
+  the SPA origin differs from the WebAuthn RP ID.
+- `listPasskeys` / `renamePasskey` / `revokePasskey` — CRUD against
+  `/v1/me/passkeys` with a session `accessToken`.
+- `<PasskeyManager />` + `usePasskeys()` — drop-in UI for customer apps.
+
 ### `AuthioError`
 
 Re-exported from `@useauthio/node`. Thrown by every helper and the

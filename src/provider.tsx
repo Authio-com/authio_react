@@ -454,11 +454,17 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
     [],
   );
 
+  const resolvedSignInUrl = signInUrl ?? DEFAULT_SIGN_IN_URL;
+
   const value = useMemo<AuthioContextValue>(
     () => ({
       user,
       status,
       accessToken,
+      apiUrl,
+      projectId,
+      signInUrl: resolvedSignInUrl,
+      fetchImpl,
       getAccessToken,
       signIn,
       signOut,
@@ -469,6 +475,10 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       user,
       status,
       accessToken,
+      apiUrl,
+      projectId,
+      resolvedSignInUrl,
+      fetchImpl,
       getAccessToken,
       signIn,
       signOut,

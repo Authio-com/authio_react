@@ -4,6 +4,19 @@ All notable changes to `@useauthio/react` are documented here. This
 project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4] — 2026-06-19
+
+### Added
+- **Passkey management for customer apps.** `listPasskeys`, `renamePasskey`,
+  `revokePasskey`, `mintPasskeyRegisterIntent`, `buildEnrollPasskeyUrl`, and
+  `enrollPasskey` helpers for `/v1/me/passkeys` and hosted-UI
+  `mode=add_credential` enrollment.
+- **`usePasskeys` hook** and **`<PasskeyManager />`** drop-in component for
+  in-app device lists (list/rename/revoke on your origin; add via redirect to
+  the sign-in host).
+- **`addPasskey()`** for embedded WebAuthn enrollment when your SPA shares
+  the sign-in origin (`canEnrollPasskeyEmbedded`).
+
 ## [0.2.3] — 2026-06-17
 
 ### Added

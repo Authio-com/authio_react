@@ -18,6 +18,30 @@ export type {
 } from "./gates";
 
 export { signInWithMagicLink, signInWithPasskey } from "./sign-in";
+
+export {
+  addPasskey,
+  listPasskeys,
+  renamePasskey,
+  revokePasskey,
+  mintPasskeyRegisterIntent,
+  buildEnrollPasskeyUrl,
+  enrollPasskey,
+  signInOrigin,
+  canEnrollPasskeyEmbedded,
+} from "./passkeys";
+export type {
+  AuthioPasskey,
+  PasskeyApiOptions,
+  AddPasskeyOptions,
+  EnrollPasskeyOptions,
+} from "./passkeys";
+
+export { usePasskeys } from "./usePasskeys";
+export type { UsePasskeysResult } from "./usePasskeys";
+
+export { PasskeyManager } from "./PasskeyManager";
+export type { PasskeyManagerProps } from "./PasskeyManager";
 export type {
   SignInWithMagicLinkOptions,
   SignInWithPasskeyOptions,

@@ -1,6 +1,6 @@
 {
   "name": "@useauthio/react",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "React SDK for Authio: hooks, gates, and sign-in helpers for pure SPAs.",
   "author": "Authio",
   "license": "MIT",
@@ -44,6 +44,7 @@
     "react-dom": ">=18"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^11.0.0",
     "@useauthio/node": "^0.2.0"
   },
   "devDependencies": {

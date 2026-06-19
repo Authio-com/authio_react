@@ -35,6 +35,14 @@ export interface AuthioContextValue {
   user: AuthioUser | null;
   status: AuthioStatus;
   accessToken: string | null;
+  /** Same `apiUrl` passed to `<AuthioProvider>`. */
+  apiUrl: string;
+  /** Same `projectId` passed to `<AuthioProvider>`. */
+  projectId: string;
+  /** Resolved hosted sign-in URL (custom domain or Lobby default). */
+  signInUrl: string;
+  /** Custom fetch from provider props, if any. */
+  fetchImpl?: typeof fetch;
   /**
    * Returns the current access token, silently refreshing if it's
    * within 10 seconds of expiry. Returns `null` when no session
