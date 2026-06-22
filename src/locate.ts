@@ -55,3 +55,64 @@ export function captureClientLocation(
     );
   });
 }
+
+export type LocateAction = "sign_in" | "wager_placed" | "contest_entry" | string;
+
+export interface VerifyLocateOptions {
+  apiUrl: string;
+  projectId: string;
+  accessToken: string;
+  action: LocateAction;
+  clientLocation?: ClientLocationCapture;
+  idempotencyKey?: string;
+  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+}
+
+export interface LocateVerifyResult {
+  verification_id: string;
+  decision: "allow" | "block";
+  confidence: number;
+  method: string;
+  location: { country: string; region: string; source: string };
+  network_signals: {
+    vpn: boolean;
+    datacenter: boolean;
+    tor: boolean;
+    anonymous_proxy: boolean;
+    satellite: boolean;
+  };
+  evasion_signals: string[];
+}
+
+/**
+ * Standalone Locate verify for custom actions (e.g. wager_placed).
+ * Requires a user access token with locate plan enabled.
+ */
+export async function verifyLocate(opts: VerifyLocateOptions): Promise<LocateVerifyResult> {
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  const url = `${opts.apiUrl.replace(/\/$/, "")}/v1/locate/verify`;
+  const res = await fetchImpl(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${opts.accessToken}`,
+      "X-Authio-Project": opts.projectId,
+    },
+    body: JSON.stringify({
+      action: opts.action,
+      client_location: opts.clientLocation,
+      idempotency_key: opts.idempotencyKey,
+    }),
+    signal: opts.signal,
+  });
+  const body = (await res.json().catch(() => ({}))) as LocateVerifyResult & {
+    code?: string;
+    message?: string;
+  };
+  if (!res.ok) {
+    throw new Error(body.message ?? body.code ?? `locate_verify_failed_${res.status}`);
+  }
+  return body;
+}

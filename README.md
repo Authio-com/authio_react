@@ -375,6 +375,27 @@ first-party cookie and the cross-origin check is implicit.
 
 ---
 
+## Locate (GPS + custom actions)
+
+For regulated flows (wagers, contest entry), capture GPS and call standalone verify:
+
+```tsx
+import { captureClientLocation, verifyLocate } from "@useauthio/react";
+
+const gps = await captureClientLocation({ enableHighAccuracy: true });
+const result = await verifyLocate({
+  apiUrl: "https://manage.authio.com",
+  projectId: process.env.AUTHIO_PROJECT_ID!,
+  accessToken: await getAccessToken(),
+  action: "wager_placed",
+  clientLocation: gps,
+});
+```
+
+**React Native / Flutter:** expose the same JSON payload via a JS bridge — call your backend or `/v1/locate/verify` with `client_location` and `action`. See `authio_locate/docs/GEOFENCING.md` for periodic re-verify design.
+
+---
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).

@@ -48,10 +48,13 @@ export type {
   SignInWithPasskeyResult,
 } from "./sign-in";
 
-export { captureClientLocation } from "./locate";
+export { captureClientLocation, verifyLocate } from "./locate";
 export type {
   ClientLocationCapture,
   CaptureClientLocationOptions,
+  LocateAction,
+  VerifyLocateOptions,
+  LocateVerifyResult,
 } from "./locate";
 
 export { AuthioError, wrapFetchError } from "./errors";
