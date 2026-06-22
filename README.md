@@ -377,22 +377,27 @@ first-party cookie and the cross-origin check is implicit.
 
 ## Locate (GPS + custom actions)
 
-For regulated flows (wagers, contest entry), capture GPS and call standalone verify:
+Capture GPS in the browser, then POST to **your backend**. The backend calls
+management-api with a secret key (`sk_live_…` / `sk_test_…`) — never expose
+`sk_` in the browser:
 
 ```tsx
-import { captureClientLocation, verifyLocate } from "@useauthio/react";
+import { captureClientLocation } from "@useauthio/react";
 
 const gps = await captureClientLocation({ enableHighAccuracy: true });
-const result = await verifyLocate({
-  apiUrl: "https://manage.authio.com",
-  projectId: process.env.AUTHIO_PROJECT_ID!,
-  accessToken: await getAccessToken(),
-  action: "wager_placed",
-  clientLocation: gps,
+const result = await fetch("/api/locate/verify-wager", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ action: "wager_placed", client_location: gps }),
 });
 ```
 
-**React Native / Flutter:** expose the same JSON payload via a JS bridge — call your backend or `/v1/locate/verify` with `client_location` and `action`. See `authio_locate/docs/GEOFENCING.md` for periodic re-verify design.
+Server-side, use `@useauthio/node` → `authio.locate.verify({ action, client_location, user_id, … })`
+against `https://manage.authio.com/v1/locate/verify`.
+
+**React Native:** `@useauthio/react` is browser-only. Use native geolocation
+(expo-location or `@react-native-community/geolocation`), POST to your backend,
+same proxy pattern. Full JB migration guide: `authio_locate/docs/JB_MIGRATION_GUIDE.md`.
 
 ---
 

@@ -85,34 +85,15 @@ export interface LocateVerifyResult {
   evasion_signals: string[];
 }
 
+const VERIFY_LOCATE_BACKEND_ONLY =
+  "verifyLocate() is not supported in @useauthio/react: POST /v1/locate/verify requires a project secret key (sk_live_/sk_test_), not a user JWT. " +
+  "Capture GPS with captureClientLocation(), POST to your backend, and call authio.locate.verify() via @useauthio/node. " +
+  "See authio_locate/docs/JB_MIGRATION_GUIDE.md.";
+
 /**
- * Standalone Locate verify for custom actions (e.g. wager_placed).
- * Requires a user access token with locate plan enabled.
+ * @deprecated Use backend proxy with `@useauthio/node` `authio.locate.verify()` — see JB migration guide.
+ * This helper always throws; it must not send a user JWT to the sk_-only verify route.
  */
-export async function verifyLocate(opts: VerifyLocateOptions): Promise<LocateVerifyResult> {
-  const fetchImpl = opts.fetchImpl ?? globalThis.fetch.bind(globalThis);
-  const url = `${opts.apiUrl.replace(/\/$/, "")}/v1/locate/verify`;
-  const res = await fetchImpl(url, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${opts.accessToken}`,
-      "X-Authio-Project": opts.projectId,
-    },
-    body: JSON.stringify({
-      action: opts.action,
-      client_location: opts.clientLocation,
-      idempotency_key: opts.idempotencyKey,
-    }),
-    signal: opts.signal,
-  });
-  const body = (await res.json().catch(() => ({}))) as LocateVerifyResult & {
-    code?: string;
-    message?: string;
-  };
-  if (!res.ok) {
-    throw new Error(body.message ?? body.code ?? `locate_verify_failed_${res.status}`);
-  }
-  return body;
+export async function verifyLocate(_opts: VerifyLocateOptions): Promise<LocateVerifyResult> {
+  throw new Error(VERIFY_LOCATE_BACKEND_ONLY);
 }
