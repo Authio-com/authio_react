@@ -12,7 +12,7 @@
 > https://authio.com/products/lobby.
 
 React SDK for Authio — hooks, gates, and sign-in helpers for **pure
-SPAs** that talk directly to auth-core via CORS. If you have a
+SPAs** that talk directly to the identity API via CORS. If you have a
 Next.js or other BFF, reach for [`@useauthio/nextjs`](https://github.com/authio-com/authio_nextjs)
 instead.
 
@@ -129,7 +129,7 @@ function MagicLinkForm() {
 That's it. The provider runs a silent `POST /v1/auth/refresh` against
 your BFF cookie at mount, schedules a renewal one minute before the
 access JWT expires, and verifies every received token against the
-auth-core JWKS before trusting it.
+identity API JWKS before trusting it.
 
 A complete runnable example lives in [`examples/vite-react/`](./examples/vite-react/).
 
@@ -162,7 +162,7 @@ that CNAME at runtime — it only affects where end users sign in when you overr
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `apiUrl` | `string` (required) | — | Auth-core base URL, e.g. `"https://auth-api.authio.com"`. |
+| `apiUrl` | `string` (required) | — | Identity API base URL, e.g. `"https://identity.authio.com"` (legacy alias `auth-api.authio.com`). |
 | `projectId` | `string` (required) | — | Environment ID (`proj_…`; API field `project_id`). Sent as `X-Authio-Project` on every call. |
 | `storage` | `"memory" \| "localStorage" \| "sessionStorage" \| "none"` | `"memory"` | Access-token storage backend. **Refresh tokens are never JS-accessible** regardless of this setting. |
 | `refreshLeadSeconds` | `number` | `60` | How many seconds before `exp` to schedule the silent refresh. |
@@ -192,7 +192,7 @@ that CNAME at runtime — it only affects where end users sign in when you overr
   from `exp`, otherwise transparently triggers a refresh and returns
   the new value (or `null` on failure). Use it as your `Authorization`
   source for outbound API calls.
-- `signIn()` navigates the tab to Lobby (`signInUrl`). When auth-core
+- `signIn()` navigates the tab to Lobby (`signInUrl`). When identity API
   supports it, the SDK mints a short-lived `ctx` token so
   `project_id` and `redirect_uri` are not exposed in the URL; it falls
   back to legacy `?project_id=…&redirect_uri=…` query params otherwise.
@@ -239,10 +239,10 @@ Runs the full WebAuthn assertion ceremony against
 `/v1/auth/passkey/login/options` + `/v1/auth/passkey/login/verify`.
 Returns `{ accessToken, refreshToken?, user }`. Throws `AuthioError`
 with codes `not_in_browser`, `webauthn_unsupported`,
-`webauthn_cancelled`, or any auth-core error code on a step failure.
+`webauthn_cancelled`, or any identity API error code on a step failure.
 
 The returned `refreshToken` is included for completeness but the SDK
-itself never persists it — auth-core also sets the refresh cookie via
+itself never persists it — identity API also sets the refresh cookie via
 `Set-Cookie` and that's the canonical home for it.
 
 ### Passkey management (`/v1/me/passkeys`)
@@ -263,7 +263,7 @@ import {
 
 const token = await getAccessToken();
 await addPasskey({
-  apiUrl: "https://auth-api.authio.com",
+  apiUrl: "https://identity.authio.com",
   projectId: "proj_123",
   accessToken: token!,
   email: user.email!,
@@ -290,7 +290,7 @@ provider on failure. Shape: `{ code, message, status, requestId? }`.
 
 | You have… | Use |
 |-----------|-----|
-| A pure SPA (Vite, CRA, Webpack) talking directly to auth-core via CORS | **`@useauthio/react`** (this package) |
+| A pure SPA (Vite, CRA, Webpack) talking directly to identity API via CORS | **`@useauthio/react`** (this package) |
 | A Next.js app with a BFF (`/api/auth/*` route handlers) | [`@useauthio/nextjs`](https://github.com/authio-com/authio_nextjs) |
 | A Remix / TanStack Start / Astro app | `@useauthio/react` for the client; your framework's loader/action helpers for the server |
 
@@ -298,9 +298,9 @@ The reason for the split: `@useauthio/nextjs` lives in the BFF cookie
 world — it owns `authio_session` + `authio_refresh` HttpOnly cookies
 on **your origin** and the SPA sees only `useUser()`-style hooks
 pointed at `/api/auth/me`. `@useauthio/react` lives in the CORS world —
-your SPA fetches `auth-api.authio.com` directly with
+your SPA fetches `identity.authio.com` directly with
 `credentials: include`, and the refresh cookie is set on the
-auth-core origin. Both end up with the same DX in components, but
+identity API origin. Both end up with the same DX in components, but
 the network shape and the threat surface differ.
 
 ---
@@ -313,12 +313,12 @@ Security Policy so the browser allows it:
 ```http
 Content-Security-Policy:
   default-src 'self';
-  connect-src 'self' https://auth-api.authio.com;
+  connect-src 'self' https://identity.authio.com;
   script-src 'self';
   style-src 'self' 'unsafe-inline';
 ```
 
-If you've moved auth-core to a custom domain (e.g.
+If you've moved identity API to a custom domain (e.g.
 `auth.acme.com`), allowlist that host instead. The hosted sign-in UI
 itself is reached via a top-level navigation (`window.location.assign`),
 which is not subject to `connect-src`.
@@ -346,7 +346,7 @@ mode plus the refresh cookie is enough.
 
 **The refresh token is NEVER stored in JS-accessible storage**,
 regardless of which `storage` mode you choose. It rides only the
-HttpOnly cookie that auth-core sets at `/v1/auth/refresh` and
+HttpOnly cookie that identity API sets at `/v1/auth/refresh` and
 `/v1/auth/passkey/login/verify`. `getAccessToken()` and the silent
 refresh path both call those endpoints with `credentials: include`
 to pick up the rotated token without ever surfacing the refresh
@@ -356,20 +356,20 @@ token to your code.
 
 ## CSRF guidance
 
-If your SPA is hosted on a different origin than auth-core (e.g.
-`app.acme.com` calling `auth-api.authio.com`):
+If your SPA is hosted on a different origin than identity API (e.g.
+`app.acme.com` calling `identity.authio.com`):
 
-1. Auth-core's CORS allowlist must include your SPA origin.
-   The auth-core operator adds it via the project settings.
+1. Identity API's CORS allowlist must include your SPA origin.
+   The identity API operator adds it via the project settings.
 2. The provider always uses `credentials: include` on
    `/v1/auth/refresh` and `/v1/auth/sign-out`, so the browser sends
    the refresh cookie on those calls.
-3. Auth-core enforces a SameSite=None refresh cookie when the SPA
+3. Identity API enforces a SameSite=None refresh cookie when the SPA
    origin differs from the cookie origin, plus the per-project CORS
    origin check — that's the line of defence against CSRF on the
    refresh endpoint itself.
 
-If your SPA is hosted on the SAME parent domain as auth-core (e.g.
+If your SPA is hosted on the SAME parent domain as identity API (e.g.
 both under `*.acme.com`), the refresh cookie is a SameSite=Lax
 first-party cookie and the cross-origin check is implicit.
 
@@ -378,7 +378,7 @@ first-party cookie and the cross-origin check is implicit.
 ## Locate (GPS + custom actions)
 
 Capture GPS in the browser, then POST to **your backend**. The backend calls
-management-api with a secret key (`sk_live_…` / `sk_test_…`) — never expose
+management API with a secret key (`sk_live_…` / `sk_test_…`) — never expose
 `sk_` in the browser:
 
 ```tsx
