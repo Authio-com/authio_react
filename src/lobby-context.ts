@@ -7,6 +7,8 @@ export interface MintLobbySignInUrlOptions {
   redirectUri: string;
   /** Post-login path threaded separately from redirect_uri (BFF ?next=). */
   next?: string;
+  /** Org scope for org_policies.disabled_methods on the Lobby surface. */
+  organizationId?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -37,6 +39,9 @@ export async function mintLobbySignInUrl(
             project_id: opts.projectId,
             redirect_uri: opts.redirectUri,
             ...(opts.next ? { next: opts.next } : {}),
+            ...(opts.organizationId
+              ? { organization_id: opts.organizationId }
+              : {}),
           }),
         },
       );
@@ -58,6 +63,9 @@ export async function mintLobbySignInUrl(
   target.searchParams.set("redirect_uri", opts.redirectUri);
   if (opts.next) {
     target.searchParams.set("next", opts.next);
+  }
+  if (opts.organizationId) {
+    target.searchParams.set("organization_id", opts.organizationId);
   }
   return target.toString();
 }
