@@ -1,5 +1,6 @@
 import { AuthioError } from "@useauthio/node";
 import { authioFetch } from "./fetch";
+import { deviceSignalsExtraHeaders } from "./device-signals";
 import { isBrowser } from "./ssr";
 import type { AuthioUser } from "./types";
 
@@ -229,6 +230,7 @@ export async function signInWithPasskey(
     path: "/v1/auth/passkey/login/verify",
     method: "POST",
     body: { credential: webauthnCredential },
+    extraHeaders: deviceSignalsExtraHeaders(),
     credentials: "include",
     signal: opts.signal,
     fetchImpl: opts.fetch,

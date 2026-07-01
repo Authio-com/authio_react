@@ -57,6 +57,14 @@ export type {
   LocateVerifyResult,
 } from "./locate";
 
+export {
+  collectDeviceSignals,
+  encodeDeviceSignalsHeader,
+  deviceSignalsExtraHeaders,
+  DEVICE_SIGNALS_HEADER,
+} from "./device-signals";
+export type { DeviceSignalsCapture } from "./device-signals";
+
 export { AuthioError, wrapFetchError } from "./errors";
 
 export type {
