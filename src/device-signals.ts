@@ -47,10 +47,20 @@ export function encodeDeviceSignalsHeader(
   if (typeof btoa === "function") {
     return btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
-  // Node / test fallback
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const buf = Buffer.from(json, "utf8");
-  return buf
+  // Node / test fallback. Typed structurally off globalThis so the browser
+  // SDK doesn't need @types/node just for this branch.
+  const nodeBuffer = (
+    globalThis as {
+      Buffer?: {
+        from(input: string, encoding: string): { toString(encoding: string): string };
+      };
+    }
+  ).Buffer;
+  if (!nodeBuffer) {
+    throw new Error("No base64 encoder available in this environment.");
+  }
+  return nodeBuffer
+    .from(json, "utf8")
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")

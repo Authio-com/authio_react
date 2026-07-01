@@ -17,7 +17,12 @@ export type {
   RedirectToSignInProps,
 } from "./gates";
 
-export { signInWithMagicLink, signInWithPasskey } from "./sign-in";
+export {
+  signInWithMagicLink,
+  signInWithPasskey,
+  sendEmailOtp,
+  verifyEmailOtp,
+} from "./sign-in";
 
 export {
   addPasskey,
@@ -46,6 +51,9 @@ export type {
   SignInWithMagicLinkOptions,
   SignInWithPasskeyOptions,
   SignInWithPasskeyResult,
+  SendEmailOtpOptions,
+  VerifyEmailOtpOptions,
+  VerifyEmailOtpResult,
 } from "./sign-in";
 
 export { captureClientLocation, verifyLocate } from "./locate";

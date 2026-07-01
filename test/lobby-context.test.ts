@@ -3,7 +3,7 @@ import { mintLobbySignInUrl } from "../src/lobby-context";
 
 describe("mintLobbySignInUrl", () => {
   it("passes next in lobby ctx mint body when provided", async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (..._args: Parameters<typeof fetch>) =>
       Response.json({ ctx: "signed.ctx.token" }),
     );
 
@@ -26,7 +26,7 @@ describe("mintLobbySignInUrl", () => {
   });
 
   it("uses ?ctx= when auth-core mint succeeds", async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (..._args: Parameters<typeof fetch>) =>
       Response.json({ ctx: "signed.ctx.token" }),
     );
 
@@ -53,7 +53,10 @@ describe("mintLobbySignInUrl", () => {
   });
 
   it("falls back to legacy query params when mint fails", async () => {
-    const fetchImpl = vi.fn(async () => new Response(null, { status: 503 }));
+    const fetchImpl = vi.fn(
+      async (..._args: Parameters<typeof fetch>) =>
+        new Response(null, { status: 503 }),
+    );
 
     const url = await mintLobbySignInUrl({
       apiUrl: "https://auth-api.test",

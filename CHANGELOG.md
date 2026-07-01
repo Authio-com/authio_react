@@ -4,6 +4,23 @@ All notable changes to `@useauthio/react` are documented here. This
 project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] — 2026-07-01
+
+### Added
+- **Email OTP sign-in.** `sendEmailOtp({ email, redirectUri?, next?, organizationId? })`
+  and `verifyEmailOtp({ email, code, next?, organizationId?, clientLocation?, deviceSignals? })`
+  helpers for auth-core's `/v1/auth/email-otp/send` + `/verify`, mirroring the
+  hosted Lobby's body shapes. `verifyEmailOtp` throws a typed
+  `step_up_required` `AuthioError` when the risk engine withholds the session.
+- **`signInWithPasskey` org/next forwarding.** Optional `next` and
+  `organizationId` are now included in the passkey login verify body when
+  provided. Older auth-core deployments ignore the fields; client-side token
+  handling is unchanged.
+
+### Fixed
+- `SDK_VERSION` (and the `X-Authio-SDK` header) had drifted from
+  `package.json` — re-synced.
+
 ## [0.2.4] — 2026-06-19
 
 ### Added
