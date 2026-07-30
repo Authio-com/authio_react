@@ -21,7 +21,7 @@
     "vite": "^6.4.3"
   },
   "overrides": {
-    "@babel/core": ">=7.29.6",
+    "@babel/core": ">=7.29.6 <8.0.0",
     "postcss": ">=8.5.18"
   }
 }
