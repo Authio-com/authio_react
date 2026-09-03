@@ -214,6 +214,7 @@ describe("verifyEmailOtp", () => {
     expect(result).toEqual({
       accessToken: "at_test",
       refreshToken: "rt_test",
+      sessionPolicy: null,
       user: {
         id: "user_1",
         email: "alice@example.com",

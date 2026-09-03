@@ -9,17 +9,21 @@ import React, {
 import { AuthioError } from "@useauthio/node";
 import { authioFetch } from "./fetch";
 import { createDefaultVerifier, readJwtExp } from "./jwt";
+import { ActivityTracker } from "./activity";
 import { RefreshScheduler } from "./refresh";
 import { isBrowser } from "./ssr";
 import { createTokenStorage, type TokenStorage } from "./storage";
 import { mintLobbySignInUrl } from "./lobby-context";
 import { noopEmitter, type TelemetryEmitter } from "./telemetry";
-import type {
-  AuthioContextValue,
-  AuthioProviderProps,
-  AuthioStatus,
-  AuthioTokenVerifier,
-  AuthioUser,
+import {
+  coerceSessionPolicy,
+  type AuthioContextValue,
+  type AuthioProviderProps,
+  type AuthioStatus,
+  type AuthioTokenVerifier,
+  type AuthioUser,
+  type RawSessionPolicy,
+  type SessionPolicy,
 } from "./types";
 
 export const AuthioContext = createContext<AuthioContextValue | null>(null);
@@ -30,7 +34,16 @@ interface RefreshEnvelope {
   refresh_token?: string;
   expires_at?: string;
   user?: RawUser | null;
+  session_policy?: RawSessionPolicy;
 }
+
+/**
+ * Grace window around a refresh inside which user activity still counts
+ * as "after" it. The tracker throttles writes to 1/s, so an interaction
+ * landing just after a refresh may carry a timestamp just before it;
+ * we err toward refreshing.
+ */
+const ACTIVITY_GRACE_MS = 1000;
 
 interface RawUser {
   id?: string;
@@ -77,6 +90,7 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
     projectId,
     storage: storageMode = "memory",
     refreshLeadSeconds = DEFAULT_REFRESH_LEAD,
+    idleRefresh = "defer",
     onTelemetryEvent,
     fetch: fetchImpl,
     signInUrl,
@@ -116,8 +130,24 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
     fetchImpl,
     signInUrl,
     emit,
+    idleRefresh,
   });
-  propsRef.current = { apiUrl, projectId, fetchImpl, signInUrl, emit };
+  propsRef.current = { apiUrl, projectId, fetchImpl, signInUrl, emit, idleRefresh };
+
+  // User-activity tracker + the two timestamps the idle-deferral rule
+  // compares. Refs, not state: the scheduler reads them from a timer
+  // callback and a re-render must never re-create the tracker.
+  const activityRef = useRef<ActivityTracker | null>(null);
+  // Lazily (re)created so a StrictMode double-mount, which destroys the
+  // tracker in the simulated unmount, gets a fresh one on the re-run.
+  const getTracker = useCallback((): ActivityTracker => {
+    if (activityRef.current === null) {
+      activityRef.current = new ActivityTracker();
+    }
+    return activityRef.current;
+  }, []);
+  const lastRefreshAtRef = useRef(0);
+  const policyRef = useRef<SessionPolicy | null>(null);
 
   useEffect(() => {
     if (!projectId) {
@@ -143,6 +173,20 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
     skipInitialRefresh ? "unauthenticated" : "loading",
   );
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [sessionPolicy, setSessionPolicy] = useState<SessionPolicy | null>(null);
+
+  /** Adopt a policy from an envelope and mark "refreshed now". */
+  const adoptPolicy = useCallback((policy: SessionPolicy | null) => {
+    policyRef.current = policy;
+    setSessionPolicy(policy);
+    lastRefreshAtRef.current = Date.now();
+  }, []);
+
+  const clearPolicy = useCallback(() => {
+    policyRef.current = null;
+    setSessionPolicy(null);
+    lastRefreshAtRef.current = 0;
+  }, []);
 
   /**
    * Single refresh attempt. Returns `true` on success (state has
@@ -199,6 +243,13 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       setAccessToken(token);
       if (env.user) setUser(coerceUser(env.user));
       setStatus("authenticated");
+      // Older auth-core omits session_policy; keep whatever we last saw
+      // rather than flapping to null and re-enabling timer refresh.
+      adoptPolicy(
+        env.session_policy !== undefined
+          ? coerceSessionPolicy(env.session_policy)
+          : policyRef.current,
+      );
       p.emit({
         kind: "refresh_succeeded",
         timestamp: Date.now(),
@@ -222,16 +273,17 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       });
       return false;
     }
-  }, []);
+  }, [adoptPolicy]);
 
   // Re-spin the scheduler whenever the lead window changes.
   useEffect(() => {
-    schedulerRef.current = new RefreshScheduler({
+    const scheduler = new RefreshScheduler({
       leadSeconds: refreshLeadSeconds,
       run: performRefresh,
       onGiveUp: () => {
         storageRef.current!.clear();
         refreshTokenRef.current = null;
+        clearPolicy();
         setAccessToken(null);
         setUser(null);
         setStatus("unauthenticated");
@@ -242,12 +294,48 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
           timestamp: Date.now(),
           runAt,
         }),
+      // Idle rule: hold the timer refresh when the effective policy has
+      // an inactivity timeout and the user hasn't touched the page since
+      // the last refresh. Without a policy (legacy projects, old
+      // auth-core) this is never true and behaviour is unchanged.
+      shouldDefer: () => {
+        if (propsRef.current.idleRefresh === "always") return false;
+        const policy = policyRef.current;
+        if (!policy || policy.idleTimeoutMin <= 0) return false;
+        const lastActivity = getTracker().lastActivityAt();
+        return lastActivity + ACTIVITY_GRACE_MS < lastRefreshAtRef.current;
+      },
+      onDeferred: (reason) =>
+        propsRef.current.emit({
+          kind: "refresh_deferred",
+          timestamp: Date.now(),
+          reason,
+        }),
+    });
+    schedulerRef.current = scheduler;
+    // The next interaction after an idle deferral re-arms the timer —
+    // immediately, if the token is already inside its lead window.
+    const tracker = getTracker();
+    const unsubscribe = tracker.onActivity(() => {
+      if (scheduler.deferredReason() !== "idle") return;
+      propsRef.current.emit({ kind: "refresh_resumed", timestamp: Date.now() });
+      scheduler.resume();
     });
     return () => {
-      schedulerRef.current?.destroy();
-      schedulerRef.current = null;
+      unsubscribe();
+      scheduler.destroy();
+      if (schedulerRef.current === scheduler) schedulerRef.current = null;
     };
-  }, [refreshLeadSeconds, performRefresh]);
+  }, [refreshLeadSeconds, performRefresh, clearPolicy, getTracker]);
+
+  // Tear the activity tracker down with the provider.
+  useEffect(() => {
+    const tracker = getTracker();
+    return () => {
+      tracker.destroy();
+      if (activityRef.current === tracker) activityRef.current = null;
+    };
+  }, [getTracker]);
 
   // Initial bootstrap.
   useEffect(() => {
@@ -390,12 +478,13 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       storageRef.current!.clear();
       refreshTokenRef.current = null;
       schedulerRef.current?.clear();
+      clearPolicy();
       setAccessToken(null);
       setUser(null);
       setStatus("unauthenticated");
       p.emit({ kind: "sign_out", timestamp: Date.now() });
     }
-  }, []);
+  }, [clearPolicy]);
 
   const refresh = useCallback(
     (): Promise<boolean> => performRefresh(),
@@ -407,6 +496,7 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       accessToken: string;
       refreshToken?: string | null;
       user?: AuthioUser | null;
+      sessionPolicy?: SessionPolicy | null;
     }): Promise<void> => {
       const p = propsRef.current;
       const verification = await verifierRef
@@ -441,6 +531,9 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       setAccessToken(input.accessToken);
       if (input.user) setUser(input.user);
       setStatus("authenticated");
+      adoptPolicy(
+        input.sessionPolicy !== undefined ? input.sessionPolicy : policyRef.current,
+      );
       p.emit({
         kind: "sign_in_completed",
         timestamp: Date.now(),
@@ -451,7 +544,7 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
         schedulerRef.current?.scheduleAt(exp);
       }
     },
-    [],
+    [adoptPolicy],
   );
 
   const resolvedSignInUrl = signInUrl ?? DEFAULT_SIGN_IN_URL;
@@ -461,6 +554,7 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       user,
       status,
       accessToken,
+      sessionPolicy,
       apiUrl,
       projectId,
       signInUrl: resolvedSignInUrl,
@@ -475,6 +569,7 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
       user,
       status,
       accessToken,
+      sessionPolicy,
       apiUrl,
       projectId,
       resolvedSignInUrl,

@@ -20,6 +20,10 @@
  *   - `refresh_scheduled`: a future silent refresh has been timer-
  *     scheduled. `runAt` is the unix millisecond at which the refresh
  *     will fire (subject to the visibilitychange deferral).
+ *   - `refresh_deferred`: a scheduled refresh was held back — `hidden`
+ *     when the tab is in the background, `idle` when the user has not
+ *     interacted since the last refresh and the session policy has an
+ *     inactivity timeout. `refresh_resumed` follows when it re-arms.
  *   - `sign_in_started` / `sign_in_completed` / `sign_in_failed`: the
  *     three terminal states of a sign-in attempt. `method` says which
  *     surface initiated it.
@@ -42,6 +46,13 @@ export type AuthioTelemetryEvent =
       attempt: number;
     }
   | { kind: "refresh_scheduled"; timestamp: number; runAt: number }
+  | {
+      kind: "refresh_deferred";
+      timestamp: number;
+      /** `hidden`: background tab. `idle`: no user activity under an inactivity policy. */
+      reason: "hidden" | "idle";
+    }
+  | { kind: "refresh_resumed"; timestamp: number }
   | {
       kind: "sign_in_started";
       timestamp: number;
