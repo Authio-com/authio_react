@@ -61,6 +61,70 @@ describe("RefreshScheduler", () => {
     scheduler.destroy();
   });
 
+  it("runs normally when shouldDefer is omitted or returns false (legacy behaviour)", async () => {
+    const run = vi.fn().mockResolvedValue(true);
+    const onDeferred = vi.fn();
+    const scheduler = new RefreshScheduler({
+      leadSeconds: 60,
+      run,
+      onGiveUp: () => {},
+      shouldDefer: () => false,
+      onDeferred,
+    });
+    scheduler.scheduleAt(Math.floor(Date.now() / 1000) + 60);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(onDeferred).not.toHaveBeenCalled();
+    expect(scheduler.deferredReason()).toBeNull();
+    scheduler.destroy();
+  });
+
+  it("holds the tick when shouldDefer returns true and re-arms on resume()", async () => {
+    const run = vi.fn().mockResolvedValue(true);
+    const onDeferred = vi.fn();
+    let idle = true;
+    const scheduler = new RefreshScheduler({
+      leadSeconds: 60,
+      run,
+      onGiveUp: () => {},
+      shouldDefer: () => idle,
+      onDeferred,
+    });
+    scheduler.scheduleAt(Math.floor(Date.now() / 1000) + 60);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(run).not.toHaveBeenCalled();
+    expect(onDeferred).toHaveBeenCalledWith("idle");
+    expect(scheduler.deferredReason()).toBe("idle");
+
+    // Still idle a long time later — no refresh, no backoff spinning.
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(run).not.toHaveBeenCalled();
+
+    // User comes back: the token is well inside its lead window, so the
+    // refresh fires immediately.
+    idle = false;
+    scheduler.resume();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(scheduler.deferredReason()).toBeNull();
+    scheduler.destroy();
+  });
+
+  it("resume() is a no-op when nothing is deferred", async () => {
+    const run = vi.fn().mockResolvedValue(true);
+    const scheduler = new RefreshScheduler({
+      leadSeconds: 60,
+      run,
+      onGiveUp: () => {},
+      shouldDefer: () => false,
+    });
+    scheduler.scheduleAt(Math.floor(Date.now() / 1000) + 300);
+    scheduler.resume();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(run).not.toHaveBeenCalled();
+    scheduler.destroy();
+  });
+
   it("clears any pending timer when clear() is called", async () => {
     const run = vi.fn().mockResolvedValue(true);
     const scheduler = new RefreshScheduler({

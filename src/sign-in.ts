@@ -6,7 +6,12 @@ import {
 } from "./device-signals";
 import { isBrowser } from "./ssr";
 import type { ClientLocationCapture } from "./locate";
-import type { AuthioUser } from "./types";
+import {
+  coerceSessionPolicy,
+  type AuthioUser,
+  type RawSessionPolicy,
+  type SessionPolicy,
+} from "./types";
 
 export interface SignInWithMagicLinkOptions {
   /** Authio auth-core base URL. */
@@ -93,6 +98,8 @@ export interface SignInWithPasskeyOptions {
 export interface SignInWithPasskeyResult {
   accessToken: string;
   refreshToken?: string;
+  /** Effective session policy from the envelope, `null` on older auth-core. */
+  sessionPolicy: SessionPolicy | null;
   user: AuthioUser;
 }
 
@@ -111,6 +118,7 @@ interface PasskeyLoginOptionsResponse {
 interface PasskeyLoginVerifyResponse {
   access_token: string;
   refresh_token?: string;
+  session_policy?: RawSessionPolicy;
   user: {
     id: string;
     email: string;
@@ -255,6 +263,7 @@ export async function signInWithPasskey(
   return {
     accessToken: verifyRes.access_token,
     refreshToken: verifyRes.refresh_token,
+    sessionPolicy: coerceSessionPolicy(verifyRes.session_policy),
     user: {
       id: verifyRes.user.id,
       email: verifyRes.user.email,
@@ -341,6 +350,8 @@ export interface VerifyEmailOtpOptions {
 export interface VerifyEmailOtpResult {
   accessToken: string;
   refreshToken?: string;
+  /** Effective session policy from the envelope, `null` on older auth-core. */
+  sessionPolicy: SessionPolicy | null;
   user: AuthioUser;
 }
 
@@ -349,6 +360,7 @@ interface EmailOtpVerifyResponse {
   challenge_id?: string;
   access_token: string;
   refresh_token?: string;
+  session_policy?: RawSessionPolicy;
   user: {
     id: string;
     email: string;
@@ -411,6 +423,7 @@ export async function verifyEmailOtp(
   return {
     accessToken: verifyRes.access_token,
     refreshToken: verifyRes.refresh_token,
+    sessionPolicy: coerceSessionPolicy(verifyRes.session_policy),
     user: {
       id: verifyRes.user.id,
       email: verifyRes.user.email,

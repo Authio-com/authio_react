@@ -79,6 +79,9 @@ export type {
   AuthioUser,
   AuthioStatus,
   AuthioStorageMode,
+  AuthioIdleRefreshMode,
+  SessionPolicy,
+  RawSessionPolicy,
   AuthioContextValue,
   AuthioProviderProps,
   AuthioTokenVerification,
@@ -86,3 +89,8 @@ export type {
 } from "./types";
 
 export type { AuthioTelemetryEvent } from "./telemetry";
+
+export { coerceSessionPolicy } from "./types";
+export { ActivityTracker } from "./activity";
+export type { ActivityListener } from "./activity";
+export type { RefreshDeferReason } from "./refresh";

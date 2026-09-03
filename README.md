@@ -166,6 +166,7 @@ that CNAME at runtime — it only affects where end users sign in when you overr
 | `projectId` | `string` (required) | — | Environment ID (`proj_…`; API field `project_id`). Sent as `X-Authio-Project` on every call. |
 | `storage` | `"memory" \| "localStorage" \| "sessionStorage" \| "none"` | `"memory"` | Access-token storage backend. **Refresh tokens are never JS-accessible** regardless of this setting. |
 | `refreshLeadSeconds` | `number` | `60` | How many seconds before `exp` to schedule the silent refresh. |
+| `idleRefresh` | `"defer" \| "always"` | `"defer"` | Under a project/org **inactivity timeout** (`sessionPolicy.idleTimeoutMin > 0`), `"defer"` holds the timer-driven refresh until the user next interacts, so an idle tab doesn't keep the session alive. Projects without an inactivity policy are unaffected. `"always"` restores unconditional timer refresh. |
 | `onTelemetryEvent` | `(event: AuthioTelemetryEvent) => void` | — | Sink for SDK telemetry (refresh outcomes, sign-in starts/completes, token verification). No phone-home by default. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | DI for tests / custom transports. |
 | `signInUrl` | `string` | `https://lobby.authio.com/` | Lobby (hosted UI) sign-in URL. Set to your branded auth host (e.g. `https://auth.acme.com/`) when using a custom domain — see [Custom auth domains](#custom-auth-domains) below. |
@@ -181,6 +182,7 @@ that CNAME at runtime — it only affects where end users sign in when you overr
   user: AuthioUser | null;
   status: "loading" | "authenticated" | "unauthenticated";
   accessToken: string | null;
+  sessionPolicy: SessionPolicy | null; // { idleTimeoutMin, absoluteMaxMin, accessTokenTtlMin } in minutes, 0 = no limit
   getAccessToken: () => Promise<string | null>;
   signIn: (opts?: { returnTo?: string }) => void;
   signOut: () => Promise<void>;
@@ -188,6 +190,11 @@ that CNAME at runtime — it only affects where end users sign in when you overr
 }
 ```
 
+- `sessionPolicy` mirrors the `session_policy` object auth-core returns on
+  every session envelope — the effective inactivity / maximum-session /
+  access-token limits for the current project or organization. `null`
+  until the first successful refresh or sign-in, and on auth-core versions
+  that predate the field.
 - `getAccessToken()` returns the current token if it's more than 10s
   from `exp`, otherwise transparently triggers a refresh and returns
   the new value (or `null` on failure). Use it as your `Authorization`

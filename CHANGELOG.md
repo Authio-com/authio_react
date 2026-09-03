@@ -4,6 +4,33 @@ All notable changes to `@useauthio/react` are documented here. This
 project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-09-03
+
+### Added
+- **Session policy on the context.** `useAuthio().sessionPolicy` exposes the
+  effective session-lifecycle limits auth-core now reports in the
+  `session_policy` field of every envelope (`idleTimeoutMin`,
+  `absoluteMaxMin`, `accessTokenTtlMin`; minutes, `0` = no limit). `null` on
+  auth-core versions that predate the field. `signInWithPasskey` and
+  `verifyEmailOtp` results carry the same value, and `handleSignInResult`
+  accepts it.
+- **Inactivity-aware silent refresh.** When the effective policy has an
+  inactivity timeout and the user has not interacted with the page since the
+  last refresh, the scheduled refresh is held until the next interaction
+  (pointer, key, touch, scroll, focus, or tab returning to the foreground)
+  instead of keeping an idle session alive. Projects without an inactivity
+  policy — and any auth-core that does not send `session_policy` — keep the
+  previous always-refresh behaviour, so existing apps are unaffected until
+  their project opts into an inactivity limit.
+- New provider prop `idleRefresh: "defer" | "always"` (default `"defer"`) as
+  an escape hatch for apps whose background work needs a warm token while
+  the user is away.
+- Telemetry events `refresh_deferred` (`reason: "hidden" | "idle"`) and
+  `refresh_resumed`.
+- Exported `ActivityTracker`, `coerceSessionPolicy`, and the
+  `SessionPolicy` / `RawSessionPolicy` / `AuthioIdleRefreshMode` /
+  `RefreshDeferReason` types.
+
 ## [0.2.5] — 2026-07-01
 
 ### Added

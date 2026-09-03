@@ -1,6 +1,6 @@
 {
   "name": "@useauthio/react",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "React SDK for Authio: hooks, gates, and sign-in helpers for pure SPAs.",
   "author": "Authio",
   "license": "MIT",

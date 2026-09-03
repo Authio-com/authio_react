@@ -10,6 +10,8 @@ const BACKOFF_DELAYS_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 /** After five consecutive failures we surrender and transition to unauthenticated. */
 const MAX_ATTEMPTS = 5;
 
+export type RefreshDeferReason = "hidden" | "idle";
+
 export interface RefreshSchedulerOptions {
   /** Schedule the silent refresh this many seconds before `exp`. */
   leadSeconds: number;
@@ -19,6 +21,15 @@ export interface RefreshSchedulerOptions {
   onGiveUp: () => void;
   /** Optional sink for "next refresh scheduled at" telemetry. */
   onScheduled?: (runAt: number) => void;
+  /**
+   * Consulted when the timer fires (after the hidden-tab check). Return
+   * `true` to hold the refresh until `resume()` is called — the
+   * provider uses this to skip refreshing while the user is idle under
+   * an inactivity policy. Omit for the legacy always-refresh behaviour.
+   */
+  shouldDefer?: () => boolean;
+  /** Fired when a tick is held back, with the reason. */
+  onDeferred?: (reason: RefreshDeferReason) => void;
 }
 
 /**
@@ -30,6 +41,10 @@ export interface RefreshSchedulerOptions {
  *   - When the timer fires, if the tab is hidden, we DEFER — the
  *     visibilitychange listener picks up where we left off when the
  *     tab returns. Saves battery on a sleeping background tab.
+ *   - If `shouldDefer()` says so (user idle under an inactivity
+ *     policy), we also DEFER and wait for `resume()` — the provider
+ *     calls it on the next user interaction, which re-runs the tick
+ *     immediately when the token is inside its lead window.
  *   - On failure we walk the `BACKOFF_DELAYS_MS` step list. After
  *     `MAX_ATTEMPTS` failures the scheduler calls `onGiveUp` and
  *     stops — the provider then transitions to `unauthenticated`.
@@ -41,6 +56,7 @@ export class RefreshScheduler {
   private attempts = 0;
   private lastExp: number | null = null;
   private destroyed = false;
+  private deferred: RefreshDeferReason | null = null;
   private visibilityHandler: (() => void) | null = null;
 
   constructor(private readonly opts: RefreshSchedulerOptions) {
@@ -55,15 +71,31 @@ export class RefreshScheduler {
     }
   }
 
+  /** Whether the last tick was held back (and why). `null` when not deferred. */
+  deferredReason(): RefreshDeferReason | null {
+    return this.deferred;
+  }
+
   scheduleAt(exp: number): void {
     if (this.destroyed) return;
     this.lastExp = exp;
     this.attempts = 0;
+    this.deferred = null;
     this.clear();
     const now = Math.floor(Date.now() / 1000);
     const delayMs = Math.max(0, (exp - now - this.opts.leadSeconds) * 1000);
     this.opts.onScheduled?.(Date.now() + delayMs);
     this.timer = setTimeout(() => void this.tick(), delayMs);
+  }
+
+  /**
+   * Re-arm after a deferral. No-op unless a tick is currently held
+   * back. Re-schedules against the remembered `exp`, so a token that
+   * is already inside its lead window refreshes immediately.
+   */
+  resume(): void {
+    if (this.destroyed || this.deferred === null || this.lastExp === null) return;
+    this.scheduleAt(this.lastExp);
   }
 
   private async tick(): Promise<void> {
@@ -72,8 +104,17 @@ export class RefreshScheduler {
     if (isTabHidden()) {
       // Defer until the tab is visible again; the visibility handler
       // will call scheduleAt when the user returns.
+      this.deferred = "hidden";
+      this.opts.onDeferred?.("hidden");
       return;
     }
+    if (this.opts.shouldDefer?.()) {
+      // User is idle under an inactivity policy. Hold until resume().
+      this.deferred = "idle";
+      this.opts.onDeferred?.("idle");
+      return;
+    }
+    this.deferred = null;
     let ok = false;
     try {
       ok = await this.opts.run();
