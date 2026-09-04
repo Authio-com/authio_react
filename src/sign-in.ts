@@ -26,6 +26,8 @@ export interface SignInWithMagicLinkOptions {
    * after the user clicks the link in their inbox.
    */
   redirectUri: string;
+  /** Opaque, consent-gated proof minted by @useauthio/xray. */
+  xrayVisitorProof?: string;
   signal?: AbortSignal;
   fetch?: typeof fetch;
 }
@@ -69,6 +71,9 @@ export async function signInWithMagicLink(
       // (email or E.164), NOT `email`. See magiclink.go magicLinkSendReq.
       destination: opts.email,
       redirect_uri: opts.redirectUri,
+      ...(opts.xrayVisitorProof
+        ? { xray_visitor_proof: opts.xrayVisitorProof }
+        : {}),
     },
     signal: opts.signal,
     fetchImpl: opts.fetch,
@@ -91,6 +96,8 @@ export interface SignInWithPasskeyOptions {
   next?: string;
   /** Organization scope (`org_…`) for org-policy enforcement. */
   organizationId?: string;
+  /** Opaque, consent-gated proof minted by @useauthio/xray. */
+  xrayVisitorProof?: string;
   signal?: AbortSignal;
   fetch?: typeof fetch;
 }
@@ -253,6 +260,9 @@ export async function signInWithPasskey(
       credential: webauthnCredential,
       ...(opts.next ? { next: opts.next } : {}),
       ...(opts.organizationId ? { organization_id: opts.organizationId } : {}),
+      ...(opts.xrayVisitorProof
+        ? { xray_visitor_proof: opts.xrayVisitorProof }
+        : {}),
     },
     extraHeaders: deviceSignalsExtraHeaders(),
     credentials: "include",
@@ -296,6 +306,8 @@ export interface SendEmailOtpOptions {
   next?: string;
   /** Organization scope (`org_…`) for org-policy enforcement. */
   organizationId?: string;
+  /** Opaque, consent-gated proof minted by @useauthio/xray. */
+  xrayVisitorProof?: string;
   signal?: AbortSignal;
   fetch?: typeof fetch;
 }
@@ -320,6 +332,9 @@ export async function sendEmailOtp(opts: SendEmailOtpOptions): Promise<void> {
       ...(opts.redirectUri ? { redirect_uri: opts.redirectUri } : {}),
       ...(opts.next ? { next: opts.next } : {}),
       ...(opts.organizationId ? { organization_id: opts.organizationId } : {}),
+      ...(opts.xrayVisitorProof
+        ? { xray_visitor_proof: opts.xrayVisitorProof }
+        : {}),
     },
     signal: opts.signal,
     fetchImpl: opts.fetch,
@@ -343,6 +358,8 @@ export interface VerifyEmailOtpOptions {
   clientLocation?: ClientLocationCapture;
   /** Optional coarse device signals for risk / device recognition. */
   deviceSignals?: DeviceSignalsCapture;
+  /** Opaque, consent-gated proof minted by @useauthio/xray. */
+  xrayVisitorProof?: string;
   signal?: AbortSignal;
   fetch?: typeof fetch;
 }
@@ -402,6 +419,9 @@ export async function verifyEmailOtp(
       ...(opts.organizationId ? { organization_id: opts.organizationId } : {}),
       ...(opts.clientLocation ? { client_location: opts.clientLocation } : {}),
       ...(opts.deviceSignals ? { device_signals: opts.deviceSignals } : {}),
+      ...(opts.xrayVisitorProof
+        ? { xray_visitor_proof: opts.xrayVisitorProof }
+        : {}),
     },
     credentials: "include",
     signal: opts.signal,

@@ -9,6 +9,8 @@ export interface MintLobbySignInUrlOptions {
   next?: string;
   /** Org scope for org_policies.disabled_methods on the Lobby surface. */
   organizationId?: string;
+  /** Opaque, consent-gated proof minted by @useauthio/xray. */
+  xrayVisitorProof?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -42,6 +44,9 @@ export async function mintLobbySignInUrl(
             ...(opts.organizationId
               ? { organization_id: opts.organizationId }
               : {}),
+            ...(opts.xrayVisitorProof
+              ? { xray_visitor_proof: opts.xrayVisitorProof }
+              : {}),
           }),
         },
       );
@@ -66,6 +71,9 @@ export async function mintLobbySignInUrl(
   }
   if (opts.organizationId) {
     target.searchParams.set("organization_id", opts.organizationId);
+  }
+  if (opts.xrayVisitorProof) {
+    target.searchParams.set("xray_visitor_proof", opts.xrayVisitorProof);
   }
   return target.toString();
 }
