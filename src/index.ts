@@ -73,7 +73,14 @@ export {
 } from "./device-signals";
 export type { DeviceSignalsCapture } from "./device-signals";
 
-export { AuthioError, wrapFetchError } from "./errors";
+export {
+  AuthioError,
+  AuthioStepUpRequiredError,
+  AuthioSignInDeniedError,
+  isStepUpRequired,
+  wrapFetchError,
+  AUTHIO_MESSAGES,
+} from "./errors";
 
 export type {
   AuthioUser,

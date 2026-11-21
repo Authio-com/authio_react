@@ -1,6 +1,11 @@
 import { AuthioError } from "@useauthio/node";
 import { authioFetch } from "./fetch";
 import {
+  AUTHIO_MESSAGES,
+  riskDecisionError,
+  type RiskDecisionBody,
+} from "./errors";
+import {
   deviceSignalsExtraHeaders,
   type DeviceSignalsCapture,
 } from "./device-signals";
@@ -122,18 +127,74 @@ interface PasskeyLoginOptionsResponse {
   }>;
 }
 
-interface PasskeyLoginVerifyResponse {
-  access_token: string;
+/**
+ * Wire shape of a sign-in verify response. Every field is optional on
+ * purpose: the same endpoint returns either a session envelope or a
+ * risk-engine `step_up` body (HTTP 200, no tokens, no user), so nothing
+ * may be assumed present. See `sessionFromResponse`.
+ */
+interface SignInVerifyResponse extends RiskDecisionBody {
+  access_token?: string;
   refresh_token?: string;
   session_policy?: RawSessionPolicy;
-  user: {
-    id: string;
-    email: string;
+  user?: {
+    id?: string;
+    email?: string;
     email_verified?: boolean;
     emailVerified?: boolean;
     name?: string;
     avatar_url?: string;
     avatarUrl?: string;
+  } | null;
+}
+
+interface SignInSession {
+  accessToken: string;
+  refreshToken?: string;
+  sessionPolicy: SessionPolicy | null;
+  user: AuthioUser;
+}
+
+/**
+ * Map a 2xx sign-in verify body to a session, never assuming a field
+ * is present:
+ *
+ *   - `decision: "step_up"` → `AuthioStepUpRequiredError`
+ *     (`step_up_required`, carries `stepUpUrl` / `challengeId` /
+ *     `requiredMethod`).
+ *   - `decision: "block" | "deny"` → `AuthioSignInDeniedError`
+ *     (`sign_in_denied`).
+ *   - no access token or no user id → `AuthioError` `invalid_response`.
+ */
+export function sessionFromResponse(
+  res: SignInVerifyResponse | null | undefined,
+  status = 200,
+): SignInSession {
+  const risk = riskDecisionError(res, status);
+  if (risk) throw risk;
+  const accessToken =
+    res && typeof res.access_token === "string" ? res.access_token : "";
+  const user = res && res.user && typeof res.user === "object" ? res.user : null;
+  const userId = user && typeof user.id === "string" ? user.id : "";
+  if (!res || !accessToken || !user || !userId) {
+    throw new AuthioError({
+      code: "invalid_response",
+      message: AUTHIO_MESSAGES.invalid_response,
+      status,
+    });
+  }
+  return {
+    accessToken,
+    refreshToken:
+      typeof res.refresh_token === "string" ? res.refresh_token : undefined,
+    sessionPolicy: coerceSessionPolicy(res.session_policy),
+    user: {
+      id: userId,
+      email: typeof user.email === "string" ? user.email : "",
+      emailVerified: Boolean(user.emailVerified ?? user.email_verified),
+      name: user.name,
+      avatarUrl: user.avatarUrl ?? user.avatar_url,
+    },
   };
 }
 
@@ -155,7 +216,13 @@ interface PasskeyLoginVerifyResponse {
  *   - `webauthn_unsupported` if `navigator.credentials.get` is
  *     missing (legacy browser).
  *   - `webauthn_cancelled` if the user dismisses the chooser.
- *   - Whatever auth-core returns on the options or verify call.
+ *   - `step_up_required` (`AuthioStepUpRequiredError`) when the risk
+ *     engine wants one more check. Redirect to `err.stepUpUrl`.
+ *   - `sign_in_denied` (`AuthioSignInDeniedError`) when the risk engine
+ *     or a project policy refuses the sign-in. `err.message` is
+ *     auth-core's readable reason.
+ *   - `invalid_response` if auth-core answered without a session.
+ *   - Whatever else auth-core returns on the options or verify call.
  *
  * The returned `refreshToken` is included for completeness, but the
  * SDK never persists it — auth-core's `/v1/auth/passkey/login/verify`
@@ -169,14 +236,14 @@ export async function signInWithPasskey(
     throw new AuthioError({
       code: "not_in_browser",
       message:
-        "signInWithPasskey can only be invoked in a browser environment.",
+        "Passkey sign-in only works in a web browser. Call signInWithPasskey from client-side code.",
       status: 0,
     });
   }
   if (!navigator.credentials || !navigator.credentials.get) {
     throw new AuthioError({
       code: "webauthn_unsupported",
-      message: "This browser does not support WebAuthn (passkeys).",
+      message: AUTHIO_MESSAGES.webauthn_unsupported,
       status: 0,
     });
   }
@@ -190,6 +257,14 @@ export async function signInWithPasskey(
     signal: opts.signal,
     fetchImpl: opts.fetch,
   });
+
+  if (!options || typeof options.challenge !== "string" || !options.challenge) {
+    throw new AuthioError({
+      code: "invalid_response",
+      message: AUTHIO_MESSAGES.invalid_response,
+      status: 200,
+    });
+  }
 
   const publicKey: PublicKeyCredentialRequestOptions = {
     challenge: base64UrlToBuffer(options.challenge),
@@ -210,19 +285,20 @@ export async function signInWithPasskey(
       signal: opts.signal,
     });
   } catch (err) {
-    throw new AuthioError({
+    // Browser text ("The operation either timed out or was not
+    // allowed…") is not user-friendly; keep it on `cause` only.
+    const e = new AuthioError({
       code: "webauthn_cancelled",
-      message:
-        err instanceof Error
-          ? err.message
-          : "Passkey ceremony cancelled by user.",
+      message: AUTHIO_MESSAGES.webauthn_cancelled,
       status: 0,
     });
+    Object.defineProperty(e, "cause", { value: err, enumerable: false });
+    throw e;
   }
   if (!credential) {
     throw new AuthioError({
       code: "webauthn_cancelled",
-      message: "Passkey ceremony returned no credential.",
+      message: AUTHIO_MESSAGES.webauthn_cancelled,
       status: 0,
     });
   }
@@ -251,7 +327,7 @@ export async function signInWithPasskey(
     },
   };
 
-  const verifyRes = await authioFetch<PasskeyLoginVerifyResponse>({
+  const verifyRes = await authioFetch<SignInVerifyResponse>({
     apiUrl: opts.apiUrl,
     projectId: opts.projectId,
     path: "/v1/auth/passkey/login/verify",
@@ -270,20 +346,7 @@ export async function signInWithPasskey(
     fetchImpl: opts.fetch,
   });
 
-  return {
-    accessToken: verifyRes.access_token,
-    refreshToken: verifyRes.refresh_token,
-    sessionPolicy: coerceSessionPolicy(verifyRes.session_policy),
-    user: {
-      id: verifyRes.user.id,
-      email: verifyRes.user.email,
-      emailVerified: Boolean(
-        verifyRes.user.emailVerified ?? verifyRes.user.email_verified,
-      ),
-      name: verifyRes.user.name,
-      avatarUrl: verifyRes.user.avatarUrl ?? verifyRes.user.avatar_url,
-    },
-  };
+  return sessionFromResponse(verifyRes);
 }
 
 // ============================================================
@@ -372,23 +435,6 @@ export interface VerifyEmailOtpResult {
   user: AuthioUser;
 }
 
-interface EmailOtpVerifyResponse {
-  decision?: string;
-  challenge_id?: string;
-  access_token: string;
-  refresh_token?: string;
-  session_policy?: RawSessionPolicy;
-  user: {
-    id: string;
-    email: string;
-    email_verified?: boolean;
-    emailVerified?: boolean;
-    name?: string;
-    avatar_url?: string;
-    avatarUrl?: string;
-  };
-}
-
 /**
  * POSTs `/v1/auth/email-otp/verify` with the code the user typed —
  * mirrors the hosted Lobby's verify body shape. On success returns
@@ -399,14 +445,18 @@ interface EmailOtpVerifyResponse {
  * Throws `AuthioError`:
  *
  *   - `invalid_code` for a wrong/expired code (auth-core's code).
- *   - `step_up_required` when the risk engine withholds the session
- *     pending a second factor — finish the sign-in on the hosted UI.
+ *   - `step_up_required` (`AuthioStepUpRequiredError`) when the risk
+ *     engine withholds the session pending a second factor. Redirect to
+ *     `err.stepUpUrl` to finish the sign-in on the hosted UI.
+ *   - `sign_in_denied` (`AuthioSignInDeniedError`) when the sign-in is
+ *     refused by risk or project policy.
+ *   - `invalid_response` if auth-core answered without a session.
  *   - Whatever else auth-core returns (rate-limit, policy, etc.).
  */
 export async function verifyEmailOtp(
   opts: VerifyEmailOtpOptions,
 ): Promise<VerifyEmailOtpResult> {
-  const verifyRes = await authioFetch<EmailOtpVerifyResponse>({
+  const verifyRes = await authioFetch<SignInVerifyResponse>({
     apiUrl: opts.apiUrl,
     projectId: opts.projectId,
     path: "/v1/auth/email-otp/verify",
@@ -428,32 +478,9 @@ export async function verifyEmailOtp(
     fetchImpl: opts.fetch,
   });
 
-  // The risk engine may withhold the session and demand a second factor.
-  // A pure SPA can't run the step-up ceremony itself — surface a typed
-  // error so callers can bounce the user to the hosted step-up page.
-  if (verifyRes.decision === "step_up") {
-    throw new AuthioError({
-      code: "step_up_required",
-      message:
-        "Additional verification is required. Complete the step-up challenge on the hosted sign-in page.",
-      status: 200,
-    });
-  }
-
-  return {
-    accessToken: verifyRes.access_token,
-    refreshToken: verifyRes.refresh_token,
-    sessionPolicy: coerceSessionPolicy(verifyRes.session_policy),
-    user: {
-      id: verifyRes.user.id,
-      email: verifyRes.user.email,
-      emailVerified: Boolean(
-        verifyRes.user.emailVerified ?? verifyRes.user.email_verified,
-      ),
-      name: verifyRes.user.name,
-      avatarUrl: verifyRes.user.avatarUrl ?? verifyRes.user.avatar_url,
-    },
-  };
+  // The risk engine may withhold the session (decision: "step_up") —
+  // sessionFromResponse turns that into a typed error with stepUpUrl.
+  return sessionFromResponse(verifyRes);
 }
 
 function base64UrlToBuffer(b64u: string): ArrayBuffer {

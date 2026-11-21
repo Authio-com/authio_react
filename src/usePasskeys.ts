@@ -7,6 +7,15 @@ import {
   revokePasskey,
   type AuthioPasskey,
 } from "./passkeys";
+import { AUTHIO_MESSAGES, AuthioError } from "./errors";
+
+function notSignedIn(): AuthioError {
+  return new AuthioError({
+    code: "not_signed_in",
+    message: AUTHIO_MESSAGES.not_signed_in,
+    status: 401,
+  });
+}
 
 export interface UsePasskeysResult {
   passkeys: AuthioPasskey[];
@@ -50,7 +59,7 @@ export function usePasskeys(): UsePasskeysResult {
       });
       setPasskeys(rows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load passkeys");
+      setError(err instanceof AuthioError ? err.message : "We couldn't load your passkeys. Please refresh the page and try again.");
       setPasskeys([]);
     } finally {
       setLoading(false);
@@ -70,7 +79,7 @@ export function usePasskeys(): UsePasskeysResult {
   const rename = useCallback(
     async (credentialId: string, nickname: string) => {
       const token = await ctx.getAccessToken();
-      if (!token) throw new Error("Not signed in");
+      if (!token) throw notSignedIn();
       await renamePasskey(
         {
           apiUrl: ctx.apiUrl,
@@ -89,7 +98,7 @@ export function usePasskeys(): UsePasskeysResult {
   const revoke = useCallback(
     async (credentialId: string) => {
       const token = await ctx.getAccessToken();
-      if (!token) throw new Error("Not signed in");
+      if (!token) throw notSignedIn();
       await revokePasskey(
         {
           apiUrl: ctx.apiUrl,
@@ -108,7 +117,7 @@ export function usePasskeys(): UsePasskeysResult {
     async (opts?: { returnUrl?: string; next?: string }) => {
       const token = await ctx.getAccessToken();
       const email = ctx.user?.email;
-      if (!token || !email) throw new Error("Not signed in");
+      if (!token || !email) throw notSignedIn();
       await enrollPasskey({
         apiUrl: ctx.apiUrl,
         projectId: ctx.projectId,
