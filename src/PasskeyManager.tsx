@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { usePasskeys } from "./usePasskeys";
+import { AuthioError } from "./errors";
 
 export interface PasskeyManagerProps {
   className?: string;
@@ -30,7 +31,7 @@ export function PasskeyManager({
     try {
       await rename(id, nickname);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Rename failed");
+      setActionError(err instanceof AuthioError ? err.message : "We couldn't rename that passkey. Please try again.");
     } finally {
       setBusyId(null);
     }
@@ -42,7 +43,7 @@ export function PasskeyManager({
     try {
       await revoke(id);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Revoke failed");
+      setActionError(err instanceof AuthioError ? err.message : "We couldn't remove that passkey. Please try again.");
     } finally {
       setBusyId(null);
     }
@@ -55,7 +56,7 @@ export function PasskeyManager({
       await enroll({ returnUrl: enrollReturnUrl, next: enrollNext });
     } catch (err) {
       setEnrolling(false);
-      setActionError(err instanceof Error ? err.message : "Could not start enrollment");
+      setActionError(err instanceof AuthioError ? err.message : "We couldn't start passkey setup. Please try again.");
     }
   }
 

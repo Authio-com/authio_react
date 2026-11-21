@@ -1,5 +1,11 @@
 import { AuthioError } from "@useauthio/node";
-import { wrapFetchError } from "./errors";
+import {
+  AUTHIO_MESSAGES,
+  messageForStatus,
+  riskDecisionError,
+  wrapFetchError,
+  type RiskDecisionBody,
+} from "./errors";
 import { SDK_USER_AGENT } from "./version";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -28,7 +34,10 @@ export interface AuthioFetchOptions {
  *   - `application/json` content type; body is `JSON.stringify`'d.
  *   - 2xx → parses JSON body (or returns undefined on 204).
  *   - !2xx → reads the auth-core error envelope (`{ code, message }`)
- *     and throws a typed `AuthioError`.
+ *     and throws a typed `AuthioError`. Risk-engine denies (403
+ *     `decision: "block"`) throw `AuthioSignInDeniedError`
+ *     (`sign_in_denied`). When auth-core sends no message, a readable
+ *     status-based message is used instead.
  *   - Network / abort / timeout failures throw `AuthioError` via
  *     `wrapFetchError`. Callers never see a raw `TypeError: fetch failed`.
  */
@@ -78,17 +87,19 @@ export async function authioFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      code?: string;
-      error?: string;
-      message?: string;
-      request_id?: string;
-    };
+    const raw: unknown = await res.json().catch(() => ({}));
+    const body = (raw && typeof raw === "object" ? raw : {}) as RiskDecisionBody;
+    // Risk-engine deny (403 decision:"block") and 403 step-up variants
+    // become typed sign_in_denied / step_up_required errors.
+    const risk = riskDecisionError(body, res.status);
+    if (risk) throw risk;
+    const message =
+      typeof body.message === "string" && body.message.trim() !== ""
+        ? body.message
+        : messageForStatus(res.status);
     throw new AuthioError({
       code: body.code ?? body.error ?? "request_failed",
-      message:
-        body.message ??
-        `Request to ${opts.path} failed with status ${res.status}`,
+      message,
       status: res.status,
       requestId: body.request_id,
     });
@@ -102,7 +113,7 @@ export async function authioFetch<T = unknown>(
   } catch {
     throw new AuthioError({
       code: "invalid_response",
-      message: `Response from ${opts.path} was not valid JSON`,
+      message: AUTHIO_MESSAGES.invalid_response,
       status: res.status,
     });
   }

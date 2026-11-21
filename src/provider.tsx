@@ -517,7 +517,8 @@ export function AuthioProvider(props: AuthioProviderProps): React.ReactElement {
         setStatus("unauthenticated");
         throw new AuthioError({
           code: "token_rejected",
-          message: "Authio rejected the handed-off access token signature.",
+          message:
+            "We couldn't verify your sign-in. Please sign in again.",
           status: 0,
         });
       }

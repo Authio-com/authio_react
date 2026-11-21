@@ -1,6 +1,7 @@
 import { AuthioError } from "@useauthio/node";
 import { startRegistration } from "@simplewebauthn/browser";
 import { authioFetch } from "./fetch";
+import { AUTHIO_MESSAGES } from "./errors";
 import { isBrowser } from "./ssr";
 
 export interface AuthioPasskey {
@@ -120,7 +121,8 @@ export async function enrollPasskey(opts: EnrollPasskeyOptions): Promise<void> {
   if (!isBrowser()) {
     throw new AuthioError({
       code: "not_in_browser",
-      message: "enrollPasskey can only be invoked in a browser environment.",
+      message:
+        "Passkey setup only works in a web browser. Call enrollPasskey from client-side code.",
       status: 0,
     });
   }
@@ -150,7 +152,8 @@ export async function addPasskey(opts: AddPasskeyOptions): Promise<void> {
   if (!isBrowser()) {
     throw new AuthioError({
       code: "not_in_browser",
-      message: "addPasskey can only be invoked in a browser environment.",
+      message:
+        "Passkey setup only works in a web browser. Call addPasskey from client-side code.",
       status: 0,
     });
   }
@@ -175,14 +178,21 @@ export async function addPasskey(opts: AddPasskeyOptions): Promise<void> {
   try {
     attestation = await startRegistration({ optionsJSON: options });
   } catch (err) {
-    throw new AuthioError({
-      code: "webauthn_cancelled",
-      message:
-        err instanceof Error
-          ? err.message
-          : "Passkey registration cancelled by user.",
+    // Browser/WebAuthn text is not user-friendly; keep it on `cause`.
+    const already =
+      err instanceof Error &&
+      (err.name === "InvalidStateError" ||
+        (err as { code?: string }).code ===
+          "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED");
+    const e = new AuthioError({
+      code: already ? "webauthn_already_registered" : "webauthn_cancelled",
+      message: already
+        ? AUTHIO_MESSAGES.webauthn_already_registered
+        : AUTHIO_MESSAGES.webauthn_registration_cancelled,
       status: 0,
     });
+    Object.defineProperty(e, "cause", { value: err, enumerable: false });
+    throw e;
   }
 
   await authioFetch<{ ok?: boolean }>({

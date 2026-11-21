@@ -4,6 +4,41 @@ All notable changes to `@useauthio/react` are documented here. This
 project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-11-21
+
+### Fixed
+- **`signInWithPasskey` no longer crashes on a risk step-up.** When
+  auth-core's risk engine answered `decision: "step_up"` (HTTP 200, no
+  `user`), the helper read `verifyRes.user.id` and threw
+  `Cannot read properties of undefined (reading 'id')`. Sign-in helpers
+  now never assume `user` or tokens are present.
+
+### Added
+- `AuthioStepUpRequiredError` (code `step_up_required`, thrown by
+  `signInWithPasskey` and `verifyEmailOtp`) with `stepUpUrl`,
+  `challengeId`, `requiredMethod`, `reasons` and `enrollmentRequired`.
+  `stepUpUrl` is the hosted step-up page from auth-core's new
+  `step_up_url` field. `isStepUpRequired(err)` type guard.
+- `AuthioSignInDeniedError` (code `sign_in_denied`) for risk or policy
+  denies (403 `decision: "block"`), carrying the server's message plus
+  `denyCode` and `reasons`.
+- `invalid_response` when a sign-in call returns 200 without a session.
+- `AUTHIO_MESSAGES`, the SDK's user-facing copy.
+
+### Changed
+- Every error message the SDK writes itself is now plain English and
+  actionable. Raw browser or network text ("Failed to fetch",
+  WebAuthn's "The operation either timed out or was not allowed…") moves
+  to `err.cause`. Server-sent messages are passed through unchanged.
+- The SDK's own request timeout now reports code `timeout` (it used to
+  report `aborted`).
+- Risk denies used to surface auth-core's code (for example
+  `blocked_by_risk_policy`). They now use `sign_in_denied`, and the
+  original code is on `err.denyCode`.
+- `usePasskeys` actions throw `AuthioError` `not_signed_in`, not a bare
+  `Error`. Adding a passkey that already exists reports
+  `webauthn_already_registered`.
+
 ## [0.3.0] — 2026-09-03
 
 ### Added

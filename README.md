@@ -246,7 +246,10 @@ Runs the full WebAuthn assertion ceremony against
 `/v1/auth/passkey/login/options` + `/v1/auth/passkey/login/verify`.
 Returns `{ accessToken, refreshToken?, user }`. Throws `AuthioError`
 with codes `not_in_browser`, `webauthn_unsupported`,
-`webauthn_cancelled`, or any identity API error code on a step failure.
+`webauthn_cancelled`, `step_up_required`, `sign_in_denied`,
+`invalid_response`, or any identity API error code on a step failure.
+`verifyEmailOtp` throws the same risk-engine codes. See
+[Handling risk checks](#handling-risk-checks-step-up-and-deny).
 
 The returned `refreshToken` is included for completeness but the SDK
 itself never persists it — identity API also sets the refresh cookie via
@@ -290,6 +293,39 @@ await addPasskey({
 
 Re-exported from `@useauthio/node`. Thrown by every helper and the
 provider on failure. Shape: `{ code, message, status, requestId? }`.
+
+`message` is always plain English and safe to show to users. Raw
+browser or network errors are kept on `err.cause` for debugging.
+
+### Handling risk checks (step-up and deny)
+
+Authio's risk engine can ask for one more check (for example, a sign-in
+from a new country) or refuse a sign-in. Sign-in helpers never return a
+half-finished session; they throw:
+
+| `err.code` | Class | What to do |
+|------------|-------|------------|
+| `step_up_required` | `AuthioStepUpRequiredError` | Send the user to `err.stepUpUrl` (the hosted step-up page). Also has `challengeId`, `requiredMethod`, `reasons`. |
+| `sign_in_denied` | `AuthioSignInDeniedError` | Show `err.message` (the server's reason). `err.denyCode` is the machine code, for example `blocked_by_geo_policy`. |
+| `invalid_response` | `AuthioError` | The server answered without a session. Ask the user to try again. |
+
+```ts
+import { signInWithPasskey, isStepUpRequired, AuthioError } from "@useauthio/react";
+
+try {
+  const result = await signInWithPasskey({ apiUrl, projectId });
+  await handleSignInResult(result);
+} catch (err) {
+  if (isStepUpRequired(err) && err.stepUpUrl) {
+    window.location.assign(err.stepUpUrl);
+    return;
+  }
+  setError(err instanceof AuthioError ? err.message : "Something went wrong. Please try again.");
+}
+```
+
+`stepUpUrl` is `undefined` when auth-core predates the field or the
+project has no hosted UI configured.
 
 ---
 
